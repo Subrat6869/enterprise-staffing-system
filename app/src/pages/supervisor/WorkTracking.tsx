@@ -119,8 +119,8 @@ const SupervisorWorkTracking: React.FC = () => {
                 <motion.div key={team.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
                   className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
                   {/* Team Header */}
-                  <div className="p-6 border-b border-gray-100 dark:border-gray-800">
-                    <div className="flex items-center justify-between">
+                  <div className="p-4 sm:p-6 border-b border-gray-100 dark:border-gray-800">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{team.name}</h3>
                         {team.description && <p className="text-sm text-gray-500 mt-0.5">{team.description}</p>}
@@ -144,14 +144,14 @@ const SupervisorWorkTracking: React.FC = () => {
                   {/* Members Detail */}
                   <div className="divide-y divide-gray-100 dark:divide-gray-800">
                     {teamMembers.map(member => (
-                      <div key={member.uid} className="p-5">
-                        <div className="flex items-center gap-3 mb-3">
+                      <div key={member.uid} className="p-4 sm:p-5">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-3">
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${getAvatarColor(member.name)}`}>
                             {getInitials(member.name)}
                           </div>
                           <div className="flex-1">
                             <p className="font-medium text-gray-900 dark:text-white">{member.name}</p>
-                            <div className="flex items-center gap-3 text-xs text-gray-500">
+                            <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-gray-500">
                               <span className="flex items-center gap-1"><CheckCircle className="w-3 h-3 text-green-500" />{member.completedTasks} done</span>
                               <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-orange-500" />{member.totalTasks - member.completedTasks} pending</span>
                               <span className="flex items-center gap-1"><TrendingUp className="w-3 h-3 text-blue-500" />{member.totalHours}h logged</span>

@@ -237,7 +237,7 @@ const AdminDashboard: React.FC = () => {
           transition={{ delay: 0.6 }}
           className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-6"
         >
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
               Department Overview
             </h3>
@@ -249,7 +249,7 @@ const AdminDashboard: React.FC = () => {
                   placeholder="Search departments..."
                   value={departmentSearch}
                   onChange={(e) => setDepartmentSearch(e.target.value)}
-                  className="pl-10 pr-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  className="w-full sm:w-auto pl-10 pr-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                 />
               </div>
             </div>

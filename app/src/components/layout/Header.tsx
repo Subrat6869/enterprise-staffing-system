@@ -2,7 +2,7 @@
 // HEADER COMPONENT
 // ============================================
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bell,
@@ -65,6 +65,19 @@ const Header = ({
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setIsNotificationsOpen(false);
+      setIsProfileOpen(false);
+    };
+    if (isNotificationsOpen || isProfileOpen) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [isNotificationsOpen, isProfileOpen]);
 
   const handleLogout = async () => {
     try {
@@ -78,9 +91,9 @@ const Header = ({
 
   return (
     <header className="h-16 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800 sticky top-0 z-40">
-      <div className="h-full px-4 flex items-center justify-between gap-4">
+      <div className="h-full px-3 sm:px-4 flex items-center justify-between gap-2 sm:gap-4">
         {/* Left Section */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
           <button
             onClick={onMenuClick}
             className="lg:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
@@ -92,7 +105,7 @@ const Header = ({
             )}
           </button>
 
-          {/* Search */}
+          {/* Desktop Search */}
           <div className="hidden md:flex items-center relative">
             <Search className="absolute left-3 w-4 h-4 text-gray-400" />
             <input
@@ -109,10 +122,18 @@ const Header = ({
               className="pl-10 pr-4 py-2 w-64 rounded-xl bg-gray-100 dark:bg-gray-800 border-none text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:ring-2 focus:ring-teal-500 transition-all"
             />
           </div>
+
+          {/* Mobile Search Button */}
+          <button
+            onClick={() => setIsMobileSearchOpen(!isMobileSearchOpen)}
+            className="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+          >
+            <Search className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+          </button>
         </div>
 
         {/* Right Section */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           {/* Dark Mode Toggle */}
           <button
             onClick={toggleDarkMode}
@@ -146,14 +167,14 @@ const Header = ({
           </button>
 
           {/* Notifications */}
-          <div className="relative">
+          <div className="relative" onClick={(e) => e.stopPropagation()}>
             <button
-              onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+              onClick={() => { setIsNotificationsOpen(!isNotificationsOpen); setIsProfileOpen(false); }}
               className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 transition-colors relative"
             >
               <Bell className="w-5 h-5" />
               {notificationCount > 0 && (
-                <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white text-xs font-medium rounded-full flex items-center justify-center">
+                <span className="absolute top-1 right-1 w-4 h-4 sm:w-5 sm:h-5 bg-red-500 text-white text-[10px] sm:text-xs font-medium rounded-full flex items-center justify-center">
                   {notificationCount}
                 </span>
               )}
@@ -166,7 +187,7 @@ const Header = ({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 10 }}
-                  className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 overflow-hidden"
+                  className="absolute right-0 sm:right-0 mt-2 w-[calc(100vw-2rem)] sm:w-80 max-w-sm bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 overflow-hidden -right-16 sm:right-0"
                 >
                   <div className="p-4 border-b border-gray-200 dark:border-gray-800">
                     <h3 className="font-semibold text-gray-900 dark:text-white">
@@ -211,9 +232,9 @@ const Header = ({
           </div>
 
           {/* Profile Dropdown */}
-          <div className="relative">
+          <div className="relative" onClick={(e) => e.stopPropagation()}>
             <button
-              onClick={() => setIsProfileOpen(!isProfileOpen)}
+              onClick={() => { setIsProfileOpen(!isProfileOpen); setIsNotificationsOpen(false); }}
               className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             >
               <div
@@ -266,6 +287,37 @@ const Header = ({
           </div>
         </div>
       </div>
+
+      {/* Mobile Search Overlay */}
+      <AnimatePresence>
+        {isMobileSearchOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="md:hidden bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 py-3"
+          >
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && searchQuery.trim()) {
+                    toast.info(`Searching for "${searchQuery}"...`);
+                    setSearchQuery('');
+                    setIsMobileSearchOpen(false);
+                  }
+                }}
+                autoFocus
+                className="w-full pl-10 pr-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 border-none text-sm text-gray-900 dark:text-white placeholder-gray-500 focus:ring-2 focus:ring-teal-500 transition-all"
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </header>
   );
 };
