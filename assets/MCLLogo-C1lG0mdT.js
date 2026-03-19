@@ -1,0 +1,1 @@
+import{j as t}from"./index-C6Ms_JOL.js";const a=({className:s=""})=>t.jsx("img",{src:"/enterprise-staffing-system/mcl-logo.png",alt:"MCL - Mahanadi Coalfields Limited",className:`object-contain ${s}`});export{a as M};
