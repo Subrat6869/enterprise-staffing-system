@@ -10,7 +10,14 @@ export default defineConfig({
   base: isVercel ? '/' : '/enterprise-staffing-system/',
   plugins: [
     react(),
-    nodePolyfills(),
+    nodePolyfills({
+      globals: {
+        Buffer: true,
+        global: true,
+        process: true,
+      },
+      protocolImports: true,
+    }),
   ],
   resolve: {
     alias: {
