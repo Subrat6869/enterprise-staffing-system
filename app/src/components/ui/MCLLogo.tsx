@@ -13,7 +13,7 @@ const MCLLogo: React.FC<MCLLogoProps> = ({
 }) => {
   return (
     <img
-      src="/mcl-logo.png"
+      src={`${import.meta.env.BASE_URL}mcl-logo.png`}
       alt="MCL - Mahanadi Coalfields Limited"
       className={`object-contain ${className}`}
     />
