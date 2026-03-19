@@ -4,8 +4,10 @@ import { defineConfig } from "vite"
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 
 // https://vite.dev/config/
+const isVercel = process.env.VERCEL === '1';
+
 export default defineConfig({
-  base: '/enterprise-staffing-system/',
+  base: isVercel ? '/' : '/enterprise-staffing-system/',
   plugins: [
     react(),
     nodePolyfills(),

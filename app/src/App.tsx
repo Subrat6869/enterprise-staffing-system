@@ -77,9 +77,13 @@ const InternProgress = lazy(() => import('@/pages/intern/Progress'));
 const ProfileSettings = lazy(() => import('@/pages/shared/ProfileSettings'));
 
 function App() {
+  // Auto-detect GitHub Pages vs Vercel/local
+  const isGitHubPages = window.location.hostname.includes('github.io');
+  const basename = isGitHubPages ? '/enterprise-staffing-system' : '/';
+
   return (
     <AuthProvider>
-      <Router basename="/enterprise-staffing-system">
+      <Router basename={basename}>
         <Suspense fallback={<FallbackLoader />}>
           <Routes>
             {/* Public Routes */}
