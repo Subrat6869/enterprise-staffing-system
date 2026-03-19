@@ -76,17 +76,20 @@ const InternProgress = lazy(() => import('@/pages/intern/Progress'));
 // Shared Pages
 const ProfileSettings = lazy(() => import('@/pages/shared/ProfileSettings'));
 
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+
 function App() {
   // Auto-detect GitHub Pages vs Vercel/local
   const isGitHubPages = window.location.hostname.includes('github.io');
   const basename = isGitHubPages ? '/enterprise-staffing-system' : '/';
 
   return (
-    <AuthProvider>
-      <Router basename={basename}>
-        <Suspense fallback={<FallbackLoader />}>
-          <Routes>
-            {/* Public Routes */}
+    <ErrorBoundary>
+      <AuthProvider>
+        <Router basename={basename}>
+          <Suspense fallback={<FallbackLoader />}>
+            <Routes>
+              {/* Public Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/mfa-setup" element={<MfaSetup />} />
@@ -409,6 +412,7 @@ function App() {
         />
       </Router>
     </AuthProvider>
+    </ErrorBoundary>
   );
 }
 
