@@ -28,6 +28,7 @@ import MCLLogo from '@/components/ui/MCLLogo';
 interface SidebarProps {
   isCollapsed: boolean;
   onToggle: () => void;
+  isMobile?: boolean;
 }
 
 interface NavItem {
@@ -85,7 +86,7 @@ const navItems: NavItem[] = [
   { path: '/intern/progress', label: 'Progress', icon: BarChart3, roles: ['intern', 'apprentice'] },
 ];
 
-const Sidebar = ({ isCollapsed, onToggle }: SidebarProps) => {
+const Sidebar = ({ isCollapsed, onToggle, isMobile = false }: SidebarProps) => {
   const { userData } = useAuth();
   const navigate = useNavigate();
 
@@ -108,7 +109,7 @@ const Sidebar = ({ isCollapsed, onToggle }: SidebarProps) => {
       initial={false}
       animate={{ width: isCollapsed ? 72 : 260 }}
       transition={{ duration: 0.3, ease: 'easeInOut' }}
-      className="fixed left-0 top-0 h-full z-50 flex flex-col shadow-xl"
+      className={`${isMobile ? 'relative' : 'fixed left-0 top-0 z-50'} h-full flex flex-col shadow-xl`}
       style={{ backgroundColor: '#144c41' }}
     >
       {/* MCL Logo Header — exact match with reference screenshot */}
@@ -124,12 +125,13 @@ const Sidebar = ({ isCollapsed, onToggle }: SidebarProps) => {
         )}
         <button
           onClick={onToggle}
-          className="absolute right-3 p-1 rounded-md hover:bg-white/10 transition-colors flex-shrink-0"
+          className="absolute right-2 p-2.5 rounded-lg hover:bg-white/20 active:bg-white/30 transition-colors flex-shrink-0 touch-manipulation"
+          style={{ minWidth: 44, minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           {isCollapsed ? (
-            <ChevronRight className="w-4 h-4 text-white/80" />
+            <ChevronRight className="w-5 h-5 text-white" />
           ) : (
-            <ChevronLeft className="w-4 h-4 text-white/80" />
+            <ChevronLeft className="w-5 h-5 text-white" />
           )}
         </button>
       </div>

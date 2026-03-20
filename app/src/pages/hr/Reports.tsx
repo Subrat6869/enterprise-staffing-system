@@ -3,7 +3,7 @@
 // ============================================
 
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { Download, Calendar, Activity, Filter } from 'lucide-react';
@@ -20,6 +20,28 @@ const HRReports: React.FC = () => {
   };
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthStr());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const calBtnRef = useRef<HTMLButtonElement>(null);
+  const [calStyle, setCalStyle] = useState<React.CSSProperties>({});
+
+  const updateCalPosition = useCallback(() => {
+    if (!calBtnRef.current) return;
+    const rect = calBtnRef.current.getBoundingClientRect();
+    const sw = window.innerWidth;
+    if (sw < 640) {
+      const w = sw - 24;
+      setCalStyle({ left: `${12 - rect.left}px`, right: 'auto', width: `${w}px` });
+    } else {
+      setCalStyle({});
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isCalendarOpen) {
+      updateCalPosition();
+      window.addEventListener('resize', updateCalPosition);
+      return () => window.removeEventListener('resize', updateCalPosition);
+    }
+  }, [isCalendarOpen, updateCalPosition]);
 
   const formatMonthText = (ym: string) => {
     if (!ym) return 'Select Month';
@@ -108,6 +130,7 @@ const HRReports: React.FC = () => {
           <div className="flex gap-3">
             <div className="relative">
               <button
+                ref={calBtnRef}
                 onClick={() => setIsCalendarOpen(!isCalendarOpen)}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500"
               >
@@ -116,11 +139,11 @@ const HRReports: React.FC = () => {
               </button>
 
               {isCalendarOpen && (
-                <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg z-50 overflow-hidden">
+                <div className="absolute right-0 mt-2 sm:w-64 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg z-50 overflow-hidden" style={calStyle}>
                   <div className="p-3 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
                     <p className="text-sm font-semibold text-center text-gray-900 dark:text-white">Select Month & Year</p>
                   </div>
-                  <div className="p-2 grid grid-cols-3 gap-1 max-h-60 overflow-y-auto">
+                  <div className="p-2 grid grid-cols-2 sm:grid-cols-3 gap-1 max-h-60 overflow-y-auto">
                     {Array.from({ length: 12 }).map((_, i) => {
                       const d = new Date();
                       d.setMonth(d.getMonth() - (11 - i));

@@ -2,7 +2,7 @@
 // DASHBOARD LAYOUT COMPONENT
 // ============================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Sidebar from './Sidebar';
 import Header from './Header';
@@ -15,9 +15,19 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  // Lock body scroll when mobile sidebar is open
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [isMobileMenuOpen]);
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      {/* Sidebar */}
+      {/* Desktop Sidebar */}
       <div className="hidden lg:block">
         <Sidebar
           isCollapsed={isSidebarCollapsed}
@@ -35,11 +45,16 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
       {/* Mobile Sidebar */}
       <div
-        className={`fixed inset-y-0 left-0 z-50 lg:hidden transition-transform duration-300 ${
+        className={`fixed inset-y-0 left-0 z-50 lg:hidden transition-transform duration-300 overflow-hidden ${
           isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
+        style={{ width: 260 }}
       >
-        <Sidebar isCollapsed={false} onToggle={() => setIsMobileMenuOpen(false)} />
+        <Sidebar
+          isCollapsed={false}
+          isMobile={true}
+          onToggle={() => setIsMobileMenuOpen(false)}
+        />
       </div>
 
       {/* Main Content */}
@@ -68,3 +83,4 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 };
 
 export default DashboardLayout;
+

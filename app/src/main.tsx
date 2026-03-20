@@ -1,15 +1,6 @@
+import './polyfills'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { Buffer } from 'buffer'
-
-// Polyfill Buffer for mobile browsers (required for otplib)
-if (typeof window !== 'undefined') {
-  // @ts-expect-error - Some libraries check uppercase Buffer
-  window.Buffer = window.Buffer || Buffer
-  // @ts-expect-error - Some libraries check lowercase buffer
-  window.buffer = window.buffer || Buffer
-}
-
 import './index.css'
 import App from './App.tsx'
 

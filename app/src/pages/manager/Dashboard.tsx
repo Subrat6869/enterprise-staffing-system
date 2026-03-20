@@ -3,7 +3,7 @@
 // ============================================
 
 import * as React from 'react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   Users,
@@ -52,6 +52,28 @@ const ManagerDashboard: React.FC = () => {
   const [calMonth, setCalMonth] = useState(new Date().getMonth()); // 0-indexed end month
   const [showCalendar, setShowCalendar] = useState(false);
   const [quickRange, setQuickRange] = useState<'3m'|'6m'|'1y'>('6m');
+  const calBtnRef = useRef<HTMLButtonElement>(null);
+  const [calStyle, setCalStyle] = useState<React.CSSProperties>({});
+
+  const updateCalPosition = useCallback(() => {
+    if (!calBtnRef.current) return;
+    const rect = calBtnRef.current.getBoundingClientRect();
+    const sw = window.innerWidth;
+    if (sw < 640) {
+      const w = sw - 24;
+      setCalStyle({ left: `${12 - rect.left}px`, right: 'auto', width: `${w}px` });
+    } else {
+      setCalStyle({});
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showCalendar) {
+      updateCalPosition();
+      window.addEventListener('resize', updateCalPosition);
+      return () => window.removeEventListener('resize', updateCalPosition);
+    }
+  }, [showCalendar, updateCalPosition]);
 
   useEffect(() => { loadData(); }, []);
 
@@ -269,6 +291,7 @@ const ManagerDashboard: React.FC = () => {
                 {/* Calendar Picker */}
                 <div className="relative">
                   <button
+                    ref={calBtnRef}
                     onClick={() => setShowCalendar(!showCalendar)}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 text-xs font-medium"
                   >
@@ -277,7 +300,7 @@ const ManagerDashboard: React.FC = () => {
                   </button>
 
                   {showCalendar && (
-                    <div className="absolute right-0 top-full mt-2 z-50 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-4 w-64">
+                    <div className="absolute right-0 mt-2 sm:w-64 z-50 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-4" style={calStyle}>
                       {/* Year Selector */}
                       <div className="flex items-center justify-between mb-3">
                         <button onClick={() => setCalYear(y => y - 1)} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
@@ -289,7 +312,7 @@ const ManagerDashboard: React.FC = () => {
                         </button>
                       </div>
                       {/* Month Grid */}
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {MONTHS.map((m, i) => (
                           <button
                             key={m}

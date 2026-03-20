@@ -2,7 +2,7 @@
 // HEADER COMPONENT
 // ============================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bell,
@@ -66,6 +66,32 @@ const Header = ({
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+  const notifBtnRef = useRef<HTMLButtonElement>(null);
+  const [notifDropdownStyle, setNotifDropdownStyle] = useState<React.CSSProperties>({});
+
+  // Calculate dropdown position when notifications open
+  const updateNotifPosition = useCallback(() => {
+    if (!notifBtnRef.current) return;
+    const btnRect = notifBtnRef.current.getBoundingClientRect();
+    const screenW = window.innerWidth;
+    if (screenW < 640) {
+      // On mobile: center the dropdown within the viewport
+      const dropdownW = screenW - 24; // 12px margin each side
+      const desiredLeft = 12; // 12px from left edge of viewport
+      const offsetLeft = desiredLeft - btnRect.left;
+      setNotifDropdownStyle({ left: `${offsetLeft}px`, right: 'auto', width: `${dropdownW}px` });
+    } else {
+      setNotifDropdownStyle({});
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isNotificationsOpen) {
+      updateNotifPosition();
+      window.addEventListener('resize', updateNotifPosition);
+      return () => window.removeEventListener('resize', updateNotifPosition);
+    }
+  }, [isNotificationsOpen, updateNotifPosition]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -169,6 +195,7 @@ const Header = ({
           {/* Notifications */}
           <div className="relative" onClick={(e) => e.stopPropagation()}>
             <button
+              ref={notifBtnRef}
               onClick={() => { setIsNotificationsOpen(!isNotificationsOpen); setIsProfileOpen(false); }}
               className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 transition-colors relative"
             >
@@ -187,7 +214,8 @@ const Header = ({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 10 }}
-                  className="absolute right-0 sm:right-0 mt-2 w-[calc(100vw-2rem)] sm:w-80 max-w-sm bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 overflow-hidden -right-16 sm:right-0"
+                  className="absolute right-0 mt-2 sm:w-80 bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-800 overflow-hidden z-50"
+                  style={notifDropdownStyle}
                 >
                   <div className="p-4 border-b border-gray-200 dark:border-gray-800">
                     <h3 className="font-semibold text-gray-900 dark:text-white">
