@@ -571,3 +571,78 @@ export const getDashboardAnalytics = async () => {
   setCache('analytics:dashboard', result);
   return result;
 };
+
+// ============================================
+// CHAT HISTORY (Per-user chatbot persistence)
+// ============================================
+
+export const saveChatMessage = async (
+  userId: string,
+  userRole: string,
+  message: { role: 'user' | 'assistant'; content: string }
+): Promise<string> => {
+  const docRef = await addDoc(collection(db, 'chats'), {
+    userId,
+    userRole,
+    role: message.role,
+    content: message.content,
+    timestamp: serverTimestamp()
+  });
+  return docRef.id;
+};
+
+export const getChatHistory = async (userId: string): Promise<Array<{
+  id: string; userId: string; userRole?: string;
+  role: 'user' | 'assistant'; content: string; timestamp: any;
+}>> => {
+  const q = query(
+    collection(db, 'chats'),
+    where('userId', '==', userId),
+    orderBy('timestamp', 'asc'),
+    limit(100)
+  );
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+};
+
+export const deleteChatMessage = async (messageId: string): Promise<void> => {
+  await deleteDoc(doc(db, 'chats', messageId));
+};
+
+export const clearChatHistory = async (userId: string): Promise<void> => {
+  const q = query(collection(db, 'chats'), where('userId', '==', userId));
+  const querySnapshot = await getDocs(q);
+  const deletions = querySnapshot.docs.map(d => deleteDoc(d.ref));
+  await Promise.all(deletions);
+};
+
+// ============================================
+// NOTICES (Smart Delivery Queries)
+// ============================================
+
+export const getNoticesForUser = async (
+  userId: string,
+  _role: string,
+  teamIds: string[] = []
+): Promise<Notice[]> => {
+  // Get all active notices
+  const allNotices = await getAllNotices(100);
+
+  return allNotices.filter(notice => {
+    const type = (notice as any).noticeType || 'global';
+
+    // Global notices are for everyone
+    if (type === 'global') return true;
+
+    // Individual notices targeted at this user
+    if (type === 'individual' && (notice as any).targetId === userId) return true;
+
+    // Team/dept notices for user's teams
+    if (type === 'team' && teamIds.includes((notice as any).targetId || '')) return true;
+
+    // Fallback: legacy notices without noticeType are treated as global
+    if (!notice.noticeType) return true;
+
+    return false;
+  });
+};

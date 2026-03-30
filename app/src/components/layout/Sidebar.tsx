@@ -42,6 +42,7 @@ const navItems: NavItem[] = [
   // Admin
   { path: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin'] },
   { path: '/admin/users', label: 'Users', icon: Users, roles: ['admin'] },
+  { path: '/admin/verifications', label: 'Verifications', icon: CheckSquare, roles: ['admin'] },
   { path: '/admin/departments', label: 'Departments', icon: Building2, roles: ['admin'] },
   { path: '/admin/analytics', label: 'Analytics', icon: BarChart3, roles: ['admin'] },
   { path: '/admin/notices', label: 'Notices', icon: Bell, roles: ['admin'] },

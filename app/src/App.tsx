@@ -21,7 +21,6 @@ const FallbackLoader = () => (
 
 // Auth Pages
 const Login = lazy(() => import('@/pages/auth/Login'));
-const Register = lazy(() => import('@/pages/auth/Register'));
 const MfaSetup = lazy(() => import('@/pages/auth/MfaSetup'));
 const MfaVerify = lazy(() => import('@/pages/auth/MfaVerify'));
 const PhoneSetup = lazy(() => import('@/pages/auth/PhoneSetup'));
@@ -33,6 +32,7 @@ const AdminUsers = lazy(() => import('@/pages/admin/Users'));
 const AdminAnalytics = lazy(() => import('@/pages/admin/Analytics'));
 const AdminNotices = lazy(() => import('@/pages/admin/Notices'));
 const AdminDepartments = lazy(() => import('@/pages/admin/Departments'));
+const AdminVerifications = lazy(() => import('@/pages/admin/Verifications'));
 
 // HR Pages
 const HRDashboard = lazy(() => import('@/pages/hr/Dashboard'));
@@ -91,7 +91,6 @@ function App() {
             <Routes>
               {/* Public Routes */}
           <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
           <Route path="/mfa-setup" element={<MfaSetup />} />
           <Route path="/mfa-verify" element={<MfaVerify />} />
           <Route path="/phone-setup" element={<PhoneSetup />} />
@@ -139,6 +138,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <AdminNotices />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/verifications"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminVerifications />
               </ProtectedRoute>
             }
           />

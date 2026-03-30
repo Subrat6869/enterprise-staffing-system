@@ -3,14 +3,12 @@
 // ============================================
 
 import {
-  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithPhoneNumber,
   GoogleAuthProvider,
   signOut,
   updatePassword,
-  updateProfile,
   type User as FirebaseUser,
   type ConfirmationResult
 } from 'firebase/auth';
@@ -26,57 +24,69 @@ googleProvider.addScope('profile');
 googleProvider.addScope('email');
 
 
-// Register new user
+// Register new user (Admin-initiated — does NOT disturb admin session)
 export const registerUser = async (
   data: RegistrationData
-): Promise<{ user: FirebaseUser; userData: User }> => {
+): Promise<{ userData: User }> => {
   const { email, password, name, role, department, qualification, certificate } = data;
 
-  // Create user in Firebase Auth
-  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-  const firebaseUser = userCredential.user;
+  // Use a secondary Firebase app to create the user without logging out the admin
+  const { initializeApp, deleteApp } = await import('firebase/app');
+  const { getAuth, createUserWithEmailAndPassword: createUser, signOut: signOutSecondary, updateProfile: updateProf } = await import('firebase/auth');
+  
+  const secondaryApp = initializeApp(auth.app.options, 'secondary-registration');
+  const secondaryAuth = getAuth(secondaryApp);
 
-  // Upload certificate if provided (for intern/apprentice)
-  let certificateURL = '';
-  if (certificate && (role === 'intern' || role === 'apprentice')) {
-    const certRef = ref(storage, `certificates/${firebaseUser.uid}/${certificate.name}`);
-    await uploadBytes(certRef, certificate);
-    certificateURL = await getDownloadURL(certRef);
+  try {
+    // Create the user in Firebase Auth via secondary app
+    const userCredential = await createUser(secondaryAuth, email, password);
+    const firebaseUser = userCredential.user;
+
+    // Upload certificate if provided (for intern/apprentice)
+    let certificateURL = '';
+    if (certificate && (role === 'intern' || role === 'apprentice')) {
+      const certRef = ref(storage, `certificates/${firebaseUser.uid}/${certificate.name}`);
+      await uploadBytes(certRef, certificate);
+      certificateURL = await getDownloadURL(certRef);
+    }
+
+    // ALL roles start as pending
+    const userData: Omit<User, 'uid'> = {
+      email,
+      name,
+      role,
+      department: department || '',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      isActive: false, // Account inactive until HR approves
+      isApproved: false,
+      approvalStatus: 'pending',
+      qualification: qualification || '',
+      certificateURL,
+      certificateVerified: false,
+      skills: [],
+      experience: 0
+    };
+
+    await setDoc(doc(db, 'users', firebaseUser.uid), {
+      ...userData,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+
+    // Set display name
+    await updateProf(firebaseUser, { displayName: name });
+
+    // Sign out the newly created user from secondary app immediately
+    await signOutSecondary(secondaryAuth);
+
+    return { 
+      userData: { ...userData, uid: firebaseUser.uid } 
+    };
+  } finally {
+    // Clean up secondary app
+    await deleteApp(secondaryApp);
   }
-
-  // Roles that require HR approval before login
-  const needsApproval = ['employee', 'intern', 'apprentice'].includes(role);
-
-  // Create user document in Firestore
-  const userData: Omit<User, 'uid'> = {
-    email,
-    name,
-    role,
-    department: department || '',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    isActive: true,
-    isApproved: !needsApproval, // auto-approve admin/hr/gm/supervisor/pm
-    qualification: qualification || '',
-    certificateURL,
-    certificateVerified: false,
-    skills: [],
-    experience: 0
-  };
-
-  await setDoc(doc(db, 'users', firebaseUser.uid), {
-    ...userData,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
-  });
-
-  // Update display name
-  await updateProfile(firebaseUser, { displayName: name });
-
-  return { 
-    user: firebaseUser, 
-    userData: { ...userData, uid: firebaseUser.uid } 
-  };
 };
 
 // Login with email and password
@@ -96,10 +106,15 @@ export const loginWithEmail = async (
 
   const userData = { uid: firebaseUser.uid, ...userDoc.data() } as User;
 
-  // Block unapproved users
-  if (userData.isApproved === false) {
+  // Block unapproved users via approvalStatus (with legacy isApproved fallback)
+  const status = userData.approvalStatus || (userData.isApproved === true ? 'approved' : 'pending');
+  if (status === 'pending') {
     await signOut(auth);
-    throw new Error('Your account is pending HR approval. Please wait for approval before logging in.');
+    throw new Error('Your account is not verified yet. Please wait for HR approval.');
+  }
+  if (status === 'rejected') {
+    await signOut(auth);
+    throw new Error('Your account has been rejected. Please contact the administrator.');
   }
 
   // Update last login
@@ -126,7 +141,8 @@ export const loginWithGoogle = async (): Promise<{ user: FirebaseUser; userData:
       role: 'employee', // Default role
       createdAt: new Date(),
       isActive: true,
-      isApproved: false, // Google sign-ups also need HR approval
+      isApproved: false, // legacy compat
+      approvalStatus: 'pending', // Google sign-ups need HR approval
       skills: [],
       experience: 0,
       phoneVerified: false,
@@ -137,14 +153,24 @@ export const loginWithGoogle = async (): Promise<{ user: FirebaseUser; userData:
       createdAt: serverTimestamp()
     });
 
-    const newUserData = { ...userData, uid: firebaseUser.uid };
-    return { 
-      user: firebaseUser, 
-      userData: newUserData
-    };
+    // Block login until approved
+    await signOut(auth);
+    throw new Error('Your account has been created and is pending HR approval. Please wait for approval before logging in.');
   }
 
   const userData = { uid: firebaseUser.uid, ...userDoc.data() } as User;
+
+  // Block unapproved/rejected users
+  const status = userData.approvalStatus || (userData.isApproved === true ? 'approved' : 'pending');
+  if (status === 'pending') {
+    await signOut(auth);
+    throw new Error('Your account is not verified yet. Please wait for HR approval.');
+  }
+  if (status === 'rejected') {
+    await signOut(auth);
+    throw new Error('Your account has been rejected. Please contact the administrator.');
+  }
+
   return { user: firebaseUser, userData };
 };
 

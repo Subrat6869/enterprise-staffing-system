@@ -21,6 +21,8 @@ import { getAllUsers, updateUser, deleteUser } from '@/services/firestoreService
 import type { User } from '@/types';
 import { toast } from 'sonner';
 import { formatRole, getInitials, getAvatarColor } from '@/utils/helpers';
+import { validateEmail, validatePassword } from '@/utils/validation';
+import { useAuth } from '@/context/AuthContext';
 import {
   Dialog,
   DialogContent,
@@ -37,6 +39,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 const AdminUsers: React.FC = () => {
+  const { userData } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -44,6 +47,7 @@ const AdminUsers: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
+  const [isAddRoleDialogOpen, setIsAddRoleDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editFormData, setEditFormData] = useState({ role: '', department: '' });
   const [roleFilter, setRoleFilter] = useState<string>('all');
@@ -172,7 +176,7 @@ const AdminUsers: React.FC = () => {
               Manage all users in the system
             </p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
             <button 
               onClick={handleExportUsers}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
@@ -185,7 +189,14 @@ const AdminUsers: React.FC = () => {
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-600 text-white hover:bg-teal-700 transition-colors"
             >
               <Plus className="w-4 h-4" />
-              <span className="text-sm font-medium">Add User</span>
+              <span className="text-sm font-medium">Register User</span>
+            </button>
+            <button 
+              onClick={() => setIsAddRoleDialogOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="text-sm font-medium">Add Role</span>
             </button>
           </div>
         </div>
@@ -222,7 +233,7 @@ const AdminUsers: React.FC = () => {
           </div>
         </div>
 
-        {/* Users Table */}
+        {/* Users Table (Desktop) / Cards (Mobile) */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -234,129 +245,152 @@ const AdminUsers: React.FC = () => {
               <p className="text-gray-500 mt-4">Loading users...</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
-                    <th className="text-left py-4 px-6 text-sm font-medium text-gray-500 dark:text-gray-400">
-                      User
-                    </th>
-                    <th className="text-left py-4 px-6 text-sm font-medium text-gray-500 dark:text-gray-400">
-                      Role
-                    </th>
-                    <th className="text-left py-4 px-6 text-sm font-medium text-gray-500 dark:text-gray-400">
-                      Department
-                    </th>
-                    <th className="text-left py-4 px-6 text-sm font-medium text-gray-500 dark:text-gray-400">
-                      Status
-                    </th>
-                    <th className="text-left py-4 px-6 text-sm font-medium text-gray-500 dark:text-gray-400">
-                      Joined
-                    </th>
-                    <th className="text-left py-4 px-6 text-sm font-medium text-gray-500 dark:text-gray-400">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredUsers.map((user, index) => (
-                    <motion.tr
+            <>
+              {/* Desktop Table - hidden on mobile */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+                      <th className="text-left py-4 px-6 text-sm font-medium text-gray-500 dark:text-gray-400">User</th>
+                      <th className="text-left py-4 px-6 text-sm font-medium text-gray-500 dark:text-gray-400">Role</th>
+                      <th className="text-left py-4 px-6 text-sm font-medium text-gray-500 dark:text-gray-400">Dept</th>
+                      <th className="text-left py-4 px-6 text-sm font-medium text-gray-500 dark:text-gray-400">Approval</th>
+                      <th className="text-left py-4 px-6 text-sm font-medium text-gray-500 dark:text-gray-400">Status</th>
+                      <th className="text-left py-4 px-6 text-sm font-medium text-gray-500 dark:text-gray-400">Joined</th>
+                      <th className="text-left py-4 px-6 text-sm font-medium text-gray-500 dark:text-gray-400">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredUsers.map((user, index) => (
+                      <motion.tr
+                        key={user.uid}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="border-b border-gray-100 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30"
+                      >
+                        <td className="py-4 px-6">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${getAvatarColor(user.name)}`}>
+                              {getInitials(user.name)}
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900 dark:text-white">{user.name}</p>
+                              <p className="text-sm text-gray-500">{user.email}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-4 px-6">
+                          <span className="px-3 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
+                            {formatRole(user.role)}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6 text-gray-600 dark:text-gray-400">{user.department || '-'}</td>
+                        <td className="py-4 px-6">
+                          {(() => {
+                            const status = user.approvalStatus || (user.isApproved === true ? 'approved' : user.isApproved === false ? 'pending' : 'approved');
+                            const colors = {
+                              approved: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+                              pending: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+                              rejected: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                            };
+                            return <span className={`px-3 py-1 rounded-full text-xs font-medium ${colors[status] || colors.approved}`}>{status.charAt(0).toUpperCase() + status.slice(1)}</span>;
+                          })()}
+                        </td>
+                        <td className="py-4 px-6">
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${user.isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                            {user.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6 text-gray-600 dark:text-gray-400">
+                          {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '-'}
+                        </td>
+                        <td className="py-4 px-6">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
+                                <MoreHorizontal className="w-4 h-4 text-gray-500" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => { setSelectedUser(user); setEditFormData({ role: user.role, department: user.department || '' }); setIsEditDialogOpen(true); }}>
+                                <Edit2 className="w-4 h-4 mr-2" /> Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleToggleStatus(user)}>
+                                {user.isActive ? <><UserX className="w-4 h-4 mr-2" /> Deactivate</> : <><UserCheck className="w-4 h-4 mr-2" /> Activate</>}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => { setSelectedUser(user); setIsDeleteDialogOpen(true); }} className="text-red-600">
+                                <Trash2 className="w-4 h-4 mr-2" /> Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Cards - shown on mobile only */}
+              <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-800">
+                {filteredUsers.map((user, index) => {
+                  const approvalStatus = user.approvalStatus || (user.isApproved === true ? 'approved' : user.isApproved === false ? 'pending' : 'approved');
+                  return (
+                    <motion.div
                       key={user.uid}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      transition={{ delay: index * 0.05 }}
-                      className="border-b border-gray-100 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30"
+                      transition={{ delay: index * 0.03 }}
+                      className="p-4 space-y-3"
                     >
-                      <td className="py-4 px-6">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${
-                              getAvatarColor(user.name)
-                            }`}
-                          >
-                            {getInitials(user.name)}
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900 dark:text-white">
-                              {user.name}
-                            </p>
-                            <p className="text-sm text-gray-500">{user.email}</p>
-                          </div>
+                      {/* User info row */}
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0 ${getAvatarColor(user.name)}`}>
+                          {getInitials(user.name)}
                         </div>
-                      </td>
-                      <td className="py-4 px-6">
-                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{user.name}</p>
+                          <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                        </div>
+                      </div>
+                      {/* Badges row */}
+                      <div className="flex flex-wrap gap-2">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
                           {formatRole(user.role)}
                         </span>
-                      </td>
-                      <td className="py-4 px-6 text-gray-600 dark:text-gray-400">
-                        {user.department || '-'}
-                      </td>
-                      <td className="py-4 px-6">
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            user.isActive
-                              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                              : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                          }`}
-                        >
+                        {user.department && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                            {user.department}
+                          </span>
+                        )}
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                          approvalStatus === 'approved' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                          approvalStatus === 'rejected' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                          'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                        }`}>{approvalStatus.charAt(0).toUpperCase() + approvalStatus.slice(1)}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${user.isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
                           {user.isActive ? 'Active' : 'Inactive'}
                         </span>
-                      </td>
-                      <td className="py-4 px-6 text-gray-600 dark:text-gray-400">
-                        {user.createdAt
-                          ? new Date(user.createdAt).toLocaleDateString()
-                          : '-'}
-                      </td>
-                      <td className="py-4 px-6">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
-                              <MoreHorizontal className="w-4 h-4 text-gray-500" />
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem 
-                              onClick={() => {
-                                setSelectedUser(user);
-                                setEditFormData({ role: user.role, department: user.department || '' });
-                                setIsEditDialogOpen(true);
-                              }}
-                            >
-                              <Edit2 className="w-4 h-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleToggleStatus(user)}>
-                              {user.isActive ? (
-                                <>
-                                  <UserX className="w-4 h-4 mr-2" />
-                                  Deactivate
-                                </>
-                              ) : (
-                                <>
-                                  <UserCheck className="w-4 h-4 mr-2" />
-                                  Activate
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setSelectedUser(user);
-                                setIsDeleteDialogOpen(true);
-                              }}
-                              className="text-red-600"
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      </div>
+                      {/* Actions row */}
+                      <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800">
+                        <span className="text-[10px] text-gray-400">{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '-'}</span>
+                        <div className="flex gap-1">
+                          <button onClick={() => { setSelectedUser(user); setEditFormData({ role: user.role, department: user.department || '' }); setIsEditDialogOpen(true); }}
+                            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"><Edit2 className="w-4 h-4" /></button>
+                          <button onClick={() => handleToggleStatus(user)}
+                            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800">
+                            {user.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                          </button>
+                          <button onClick={() => { setSelectedUser(user); setIsDeleteDialogOpen(true); }}
+                            className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </>
           )}
 
           {!isLoading && filteredUsers.length === 0 && (
@@ -393,13 +427,13 @@ const AdminUsers: React.FC = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Add User Dialog */}
+        {/* Add User Dialog (Employee / Intern / Apprentice) */}
         <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Add New User</DialogTitle>
+              <DialogTitle>User Registration</DialogTitle>
               <DialogDescription>
-                Create a new user account. They will be able to log in immediately.
+                Register Employee, Intern or Apprentice. Account will be inactive until HR verifies and approves.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={async (e) => {
@@ -411,26 +445,35 @@ const AdminUsers: React.FC = () => {
               const password = formData.get('password') as string;
               const role = formData.get('role') as string;
               const department = formData.get('department') as string;
+              const qualification = formData.get('qualification') as string;
               
               if (!name || !email || !password || !role) {
                 toast.error('Please fill all required fields');
                 return;
               }
+
+              const emailResult = validateEmail(email);
+              if (!emailResult.valid) { toast.error(emailResult.error || 'Invalid email'); return; }
+              const pwResult = validatePassword(password);
+              if (!pwResult.valid) { toast.error(pwResult.error || 'Invalid password'); return; }
               
               try {
-                // Use the registration service to create user in Auth + Firestore
-                // Note: This will sign out the current admin, so we save auth state
                 const { registerUser: regUser } = await import('@/services/authService');
+                const { updateUser: updateU } = await import('@/services/firestoreService');
                 
-                await regUser({
-                  email,
-                  password,
-                  name,
+                const result = await regUser({
+                  email, password, name,
                   role: role as any,
-                  department
+                  department,
+                  qualification
                 });
+
+                // Set createdBy to current admin
+                if (userData?.uid) {
+                  await updateU(result.userData.uid, { createdBy: userData.uid });
+                }
                 
-                toast.success(`User ${name} created successfully!`);
+                toast.success(`${name} registered successfully! Pending HR verification.`);
                 setIsAddUserDialogOpen(false);
                 form.reset();
                 loadUsers();
@@ -440,87 +483,139 @@ const AdminUsers: React.FC = () => {
             }}>
               <div className="space-y-4 py-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Full Name *
-                  </label>
-                  <input
-                    name="name"
-                    type="text"
-                    required
-                    placeholder="Enter full name"
-                    className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name *</label>
+                  <input name="name" type="text" required placeholder="Enter full name"
+                    className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Email *
-                  </label>
-                  <input
-                    name="email"
-                    type="email"
-                    required
-                    placeholder="Enter email address"
-                    className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email *</label>
+                  <input name="email" type="email" required placeholder="Enter email address"
+                    className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Password *
-                  </label>
-                  <input
-                    name="password"
-                    type="password"
-                    required
-                    minLength={6}
-                    placeholder="Minimum 6 characters"
-                    className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password *</label>
+                  <input name="password" type="password" required minLength={8} placeholder="Min 8 chars, 1 letter, 1 number"
+                    className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Role *
-                  </label>
-                  <select
-                    name="role"
-                    required
-                    className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500"
-                  >
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role *</label>
+                  <select name="role" required
+                    className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white">
                     <option value="">Select role</option>
                     <option value="employee">Employee</option>
-                    <option value="supervisor">Supervisor</option>
-                    <option value="hr">HR</option>
-                    <option value="project_manager">Project Manager</option>
-                    <option value="general_manager">General Manager</option>
-                    <option value="admin">Admin</option>
                     <option value="intern">Intern</option>
                     <option value="apprentice">Apprentice</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Department
-                  </label>
-                  <input
-                    name="department"
-                    type="text"
-                    placeholder="e.g. Engineering"
-                    className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Qualification</label>
+                  <input name="qualification" type="text" placeholder="e.g. B.Tech, MBA..."
+                    className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Department</label>
+                  <input name="department" type="text" placeholder="e.g. Engineering"
+                    className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white" />
                 </div>
               </div>
               <DialogFooter>
-                <button
-                  type="button"
-                  onClick={() => setIsAddUserDialogOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-                >
+                <button type="button" onClick={() => setIsAddUserDialogOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-teal-600 text-white hover:bg-teal-700"
-                >
-                  Create User
+                <button type="submit" className="px-4 py-2 rounded-xl bg-teal-600 text-white hover:bg-teal-700">
+                  Register User
+                </button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add Role Dialog (Admin / HR / GM / PM / Supervisor) */}
+        <Dialog open={isAddRoleDialogOpen} onOpenChange={setIsAddRoleDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add Role User</DialogTitle>
+              <DialogDescription>
+                Create Admin, HR, GM, PM or Supervisor. They will require Admin verification before login.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const form = e.target as HTMLFormElement;
+              const formData = new FormData(form);
+              const name = formData.get('name') as string;
+              const email = formData.get('email') as string;
+              const password = formData.get('password') as string;
+              const role = formData.get('role') as string;
+              
+              if (!name || !email || !password || !role) {
+                toast.error('Please fill all required fields');
+                return;
+              }
+
+              const emailResult = validateEmail(email);
+              if (!emailResult.valid) { toast.error(emailResult.error || 'Invalid email'); return; }
+              const pwResult = validatePassword(password);
+              if (!pwResult.valid) { toast.error(pwResult.error || 'Invalid password'); return; }
+              
+              try {
+                const { registerUser: regUser } = await import('@/services/authService');
+                const { updateUser: updateU } = await import('@/services/firestoreService');
+                
+                const result = await regUser({
+                  email, password, name,
+                  role: role as any
+                });
+
+                if (userData?.uid) {
+                  await updateU(result.userData.uid, { createdBy: userData.uid });
+                }
+                
+                toast.success(`${name} created! Pending Admin verification.`);
+                setIsAddRoleDialogOpen(false);
+                form.reset();
+                loadUsers();
+              } catch (error: any) {
+                toast.error(error.message || 'Failed to create user');
+              }
+            }}>
+              <div className="space-y-4 py-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name *</label>
+                  <input name="name" type="text" required placeholder="Enter full name"
+                    className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email *</label>
+                  <input name="email" type="email" required placeholder="Enter email address"
+                    className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password *</label>
+                  <input name="password" type="password" required minLength={8} placeholder="Min 8 chars, 1 letter, 1 number"
+                    className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role *</label>
+                  <select name="role" required
+                    className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white">
+                    <option value="">Select role</option>
+                    <option value="admin">Admin</option>
+                    <option value="hr">HR</option>
+                    <option value="general_manager">General Manager (GM)</option>
+                    <option value="project_manager">Project Manager (PM)</option>
+                    <option value="supervisor">Supervisor</option>
+                  </select>
+                </div>
+              </div>
+              <DialogFooter>
+                <button type="button" onClick={() => setIsAddRoleDialogOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
+                  Cancel
+                </button>
+                <button type="submit" className="px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700">
+                  Create Role User
                 </button>
               </DialogFooter>
             </form>

@@ -12,6 +12,8 @@ export type UserRole =
   | 'intern' 
   | 'apprentice';
 
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
+
 export interface User {
   uid: string;
   email: string;
@@ -32,7 +34,10 @@ export interface User {
   experience?: number;
   certificateURL?: string; // For intern/apprentice bona-fide certificate
   certificateVerified?: boolean;
-  isApproved?: boolean; // HR must approve employee/intern/apprentice before they can login
+  isApproved?: boolean; // Legacy field — use approvalStatus instead
+  approvalStatus?: ApprovalStatus; // pending / approved / rejected
+  createdBy?: string; // Admin UID who registered this user
+  verifiedBy?: string; // HR UID who approved/rejected this user
   assignedManager?: string;
   assignedSupervisor?: string;
   mfaEnabled?: boolean;   // Whether 2FA is enabled
@@ -136,11 +141,16 @@ export interface Report {
   feedback?: string;
 }
 
+export type NoticeType = 'global' | 'team' | 'individual';
+
 export interface Notice {
   id: string;
   title: string;
   message: string;
   category: 'general' | 'urgent' | 'policy' | 'event';
+  noticeType: NoticeType;      // global / team / individual
+  targetId?: string;           // teamId, departmentId, or userId
+  targetName?: string;         // display name for the target
   postedBy: string;
   postedByName: string;
   createdAt: Date;
@@ -163,6 +173,7 @@ export interface Notification {
 export interface ChatMessage {
   id: string;
   userId: string;
+  userRole?: UserRole;          // the user's system role for role-aware responses
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
@@ -216,7 +227,7 @@ export interface RegistrationData {
   email: string;
   password: string;
   name: string;
-  role: Exclude<UserRole, 'admin' | 'hr' | 'general_manager' | 'supervisor' | 'project_manager'>;
+  role: UserRole; // Admin can create any role
   department?: string;
   qualification?: string;
   certificate?: File;
