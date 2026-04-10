@@ -100,41 +100,69 @@ const HREmployees: React.FC = () => {
           {isLoading ? (
             <div className="p-8 text-center"><div className="animate-spin w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full mx-auto" /></div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
-                    <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Employee</th>
-                    <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Role</th>
-                    <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Area</th>
-                    <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Department</th>
-                    <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((user) => (
-                    <tr key={user.uid} className="border-b border-gray-100 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30">
-                      <td className="py-4 px-6">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${getAvatarColor(user.name)}`}>{getInitials(user.name)}</div>
-                          <div><p className="font-medium text-gray-900 dark:text-white">{user.name}</p><p className="text-sm text-gray-500">{user.email}</p></div>
-                        </div>
-                      </td>
-                      <td className="py-4 px-6"><span className="px-3 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">{formatRole(user.role)}</span></td>
-                      <td className="py-4 px-6">
-                        {user.areaCode ? (
-                          <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" title={user.areaName || ''}>{user.areaCode}</span>
-                        ) : (
-                          <span className="text-gray-400 text-sm">—</span>
-                        )}
-                      </td>
-                      <td className="py-4 px-6 text-gray-600 dark:text-gray-400">{user.department || '-'}</td>
-                      <td className="py-4 px-6"><span className={`px-3 py-1 rounded-full text-xs font-medium ${user.isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>{user.isActive ? 'Active' : 'Inactive'}</span></td>
+            <>
+              {/* Desktop Table - hidden on mobile */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+                      <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Employee</th>
+                      <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Role</th>
+                      <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Area</th>
+                      <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Department</th>
+                      <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {filtered.map((user) => (
+                      <tr key={user.uid} className="border-b border-gray-100 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30">
+                        <td className="py-4 px-6">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${getAvatarColor(user.name)}`}>{getInitials(user.name)}</div>
+                            <div><p className="font-medium text-gray-900 dark:text-white">{user.name}</p><p className="text-sm text-gray-500">{user.email}</p></div>
+                          </div>
+                        </td>
+                        <td className="py-4 px-6"><span className="px-3 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">{formatRole(user.role)}</span></td>
+                        <td className="py-4 px-6">
+                          {user.areaCode ? (
+                            <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" title={user.areaName || ''}>{user.areaCode}</span>
+                          ) : (
+                            <span className="text-gray-400 text-sm">—</span>
+                          )}
+                        </td>
+                        <td className="py-4 px-6 text-gray-600 dark:text-gray-400">{user.department || '-'}</td>
+                        <td className="py-4 px-6"><span className={`px-3 py-1 rounded-full text-xs font-medium ${user.isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>{user.isActive ? 'Active' : 'Inactive'}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Cards - shown on mobile only */}
+              <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-800">
+                {filtered.map((user) => (
+                  <div key={user.uid} className="p-4 space-y-2.5">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0 ${getAvatarColor(user.name)}`}>{getInitials(user.name)}</div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{user.name}</p>
+                        <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">{formatRole(user.role)}</span>
+                      {user.areaCode && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" title={user.areaName || ''}>Area: {user.areaCode}</span>
+                      )}
+                      {user.department && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">{user.department}</span>
+                      )}
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${user.isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>{user.isActive ? 'Active' : 'Inactive'}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
           {!isLoading && filtered.length === 0 && (
             <div className="p-8 text-center"><Users className="w-12 h-12 text-gray-300 mx-auto mb-4" /><p className="text-gray-500">No employees found</p></div>

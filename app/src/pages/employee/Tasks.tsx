@@ -192,7 +192,7 @@ const EmployeeTasks: React.FC = () => {
               </h3>
               <p className="text-sm text-gray-500 mt-1">Hours tracked on {logView} basis</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {/* View toggle */}
               <div className="flex rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
                 <button onClick={() => setLogView('weekly')}
@@ -204,7 +204,7 @@ const EmployeeTasks: React.FC = () => {
               <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-800 rounded-xl px-2 py-1">
                 <button onClick={() => { if (logView === 'weekly') { if (logMonth === 0) { setLogMonth(11); setLogYear(y => y - 1); } else setLogMonth(m => m - 1); } else { setLogYear(y => y - 1); } }}
                   className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"><ChevronLeft className="w-4 h-4 text-gray-500" /></button>
-                <span className="text-xs font-medium text-gray-700 dark:text-gray-300 min-w-20 text-center">
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300 min-w-16 text-center">
                   {logView === 'weekly' ? `${SHORT_MONTHS[logMonth]} ${logYear}` : logYear}</span>
                 <button onClick={() => { if (logView === 'weekly') { if (logMonth === 11) { setLogMonth(0); setLogYear(y => y + 1); } else setLogMonth(m => m + 1); } else { setLogYear(y => y + 1); } }}
                   className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"><ChevronRight className="w-4 h-4 text-gray-500" /></button>

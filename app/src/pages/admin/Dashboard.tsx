@@ -299,7 +299,7 @@ const AdminDashboard: React.FC = () => {
                       {5 + index}
                     </td>
                     <td className="py-4 px-4">
-                      <div className="w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div className="w-full max-w-[8rem] h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-teal-500 rounded-full"
                           style={{ width: `${60 + index * 10}%` }}

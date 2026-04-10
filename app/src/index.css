@@ -113,3 +113,40 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+/* Prevent horizontal scroll on mobile */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* Mobile-friendly tables: allow horizontal scroll in containers */
+@media (max-width: 768px) {
+  table {
+    font-size: 0.8125rem; /* 13px */
+  }
+  table th,
+  table td {
+    padding: 0.625rem 0.75rem;
+    white-space: nowrap;
+  }
+
+  /* Make dialogs/modals take full width on small screens */
+  [role="dialog"] {
+    max-width: calc(100vw - 2rem) !important;
+    margin: 1rem;
+  }
+}
+
+/* Minimum touch target size (48px) for interactive elements on mobile */
+@media (pointer: coarse) {
+  button, a, select, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  /* Exempt small inline badges and icon-only buttons */
+  .badge, span[class*="rounded-full"] {
+    min-height: unset;
+    min-width: unset;
+  }
+}
