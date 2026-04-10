@@ -93,6 +93,12 @@ export const getUsersByDepartment = async (department: string): Promise<User[]> 
   return querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as User);
 };
 
+export const getUsersByArea = async (areaCode: string): Promise<User[]> => {
+  const q = query(collection(db, 'users'), where('areaCode', '==', areaCode));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as User);
+};
+
 export const updateUser = async (uid: string, data: Partial<User>): Promise<void> => {
   await updateDoc(doc(db, 'users', uid), {
     ...data,

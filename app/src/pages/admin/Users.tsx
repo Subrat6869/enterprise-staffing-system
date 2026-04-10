@@ -13,7 +13,6 @@ import {
   Trash2,
   UserCheck,
   UserX,
-  Filter,
   Download
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -23,6 +22,7 @@ import { toast } from 'sonner';
 import { formatRole, getInitials, getAvatarColor } from '@/utils/helpers';
 import { validateEmail, validatePassword } from '@/utils/validation';
 import { useAuth } from '@/context/AuthContext';
+import { AREAS, getAreaName } from '@/data/areaData';
 import {
   Dialog,
   DialogContent,
@@ -49,8 +49,9 @@ const AdminUsers: React.FC = () => {
   const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
   const [isAddRoleDialogOpen, setIsAddRoleDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editFormData, setEditFormData] = useState({ role: '', department: '' });
+  const [editFormData, setEditFormData] = useState({ role: '', department: '', areaCode: '' });
   const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [areaFilter, setAreaFilter] = useState<string>('all');
 
   useEffect(() => {
     loadUsers();
@@ -58,7 +59,7 @@ const AdminUsers: React.FC = () => {
 
   useEffect(() => {
     filterUsers();
-  }, [users, searchQuery, roleFilter]);
+  }, [users, searchQuery, roleFilter, areaFilter]);
 
   const loadUsers = async () => {
     try {
@@ -87,6 +88,10 @@ const AdminUsers: React.FC = () => {
 
     if (roleFilter !== 'all') {
       filtered = filtered.filter(user => user.role === roleFilter);
+    }
+
+    if (areaFilter !== 'all') {
+      filtered = filtered.filter(user => user.areaCode === areaFilter);
     }
 
     setFilteredUsers(filtered);
@@ -118,9 +123,12 @@ const AdminUsers: React.FC = () => {
   const handleEditUser = async () => {
     if (!selectedUser) return;
     try {
+      const areaName = getAreaName(editFormData.areaCode);
       await updateUser(selectedUser.uid, { 
         role: editFormData.role as any, 
-        department: editFormData.department 
+        department: editFormData.department,
+        areaCode: editFormData.areaCode,
+        areaName: areaName
       });
       toast.success('User updated successfully');
       setIsEditDialogOpen(false);
@@ -132,12 +140,14 @@ const AdminUsers: React.FC = () => {
 
   const handleExportUsers = () => {
     try {
-      const headers = ['Name', 'Email', 'Role', 'Department', 'Status', 'Joined Date'];
+      const headers = ['Name', 'Email', 'Role', 'Department', 'Area Code', 'Area Name', 'Status', 'Joined Date'];
       const csvData = filteredUsers.map(user => [
         user.name,
         user.email,
         formatRole(user.role),
         user.department || 'N/A',
+        user.areaCode || 'N/A',
+        user.areaName || 'N/A',
         user.isActive ? 'Active' : 'Inactive',
         user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'
       ]);
@@ -226,10 +236,18 @@ const AdminUsers: React.FC = () => {
                 </option>
               ))}
             </select>
-            <button className="flex items-center gap-2 px-4 py-3 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-              <Filter className="w-4 h-4" />
-              <span className="text-sm font-medium">Filter</span>
-            </button>
+            <select
+              value={areaFilter}
+              onChange={(e) => setAreaFilter(e.target.value)}
+              className="px-4 py-3 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500"
+            >
+              <option value="all">All Areas</option>
+              {AREAS.map(area => (
+                <option key={area.code} value={area.code}>
+                  {area.code} — {area.name}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -253,6 +271,7 @@ const AdminUsers: React.FC = () => {
                     <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
                       <th className="text-left py-4 px-6 text-sm font-medium text-gray-500 dark:text-gray-400">User</th>
                       <th className="text-left py-4 px-6 text-sm font-medium text-gray-500 dark:text-gray-400">Role</th>
+                      <th className="text-left py-4 px-6 text-sm font-medium text-gray-500 dark:text-gray-400">Area</th>
                       <th className="text-left py-4 px-6 text-sm font-medium text-gray-500 dark:text-gray-400">Dept</th>
                       <th className="text-left py-4 px-6 text-sm font-medium text-gray-500 dark:text-gray-400">Approval</th>
                       <th className="text-left py-4 px-6 text-sm font-medium text-gray-500 dark:text-gray-400">Status</th>
@@ -285,6 +304,15 @@ const AdminUsers: React.FC = () => {
                             {formatRole(user.role)}
                           </span>
                         </td>
+                        <td className="py-4 px-6">
+                          {user.areaCode ? (
+                            <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" title={user.areaName || ''}>
+                              {user.areaCode}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 text-sm">—</span>
+                          )}
+                        </td>
                         <td className="py-4 px-6 text-gray-600 dark:text-gray-400">{user.department || '-'}</td>
                         <td className="py-4 px-6">
                           {(() => {
@@ -313,7 +341,7 @@ const AdminUsers: React.FC = () => {
                               </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => { setSelectedUser(user); setEditFormData({ role: user.role, department: user.department || '' }); setIsEditDialogOpen(true); }}>
+                              <DropdownMenuItem onClick={() => { setSelectedUser(user); setEditFormData({ role: user.role, department: user.department || '', areaCode: user.areaCode || '' }); setIsEditDialogOpen(true); }}>
                                 <Edit2 className="w-4 h-4 mr-2" /> Edit
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleToggleStatus(user)}>
@@ -358,6 +386,11 @@ const AdminUsers: React.FC = () => {
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
                           {formatRole(user.role)}
                         </span>
+                        {user.areaCode && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" title={user.areaName || ''}>
+                            Area: {user.areaCode}
+                          </span>
+                        )}
                         {user.department && (
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
                             {user.department}
@@ -376,7 +409,7 @@ const AdminUsers: React.FC = () => {
                       <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800">
                         <span className="text-[10px] text-gray-400">{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '-'}</span>
                         <div className="flex gap-1">
-                          <button onClick={() => { setSelectedUser(user); setEditFormData({ role: user.role, department: user.department || '' }); setIsEditDialogOpen(true); }}
+                          <button onClick={() => { setSelectedUser(user); setEditFormData({ role: user.role, department: user.department || '', areaCode: user.areaCode || '' }); setIsEditDialogOpen(true); }}
                             className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"><Edit2 className="w-4 h-4" /></button>
                           <button onClick={() => handleToggleStatus(user)}
                             className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800">
@@ -446,8 +479,9 @@ const AdminUsers: React.FC = () => {
               const role = formData.get('role') as string;
               const department = formData.get('department') as string;
               const qualification = formData.get('qualification') as string;
+              const areaCode = formData.get('areaCode') as string;
               
-              if (!name || !email || !password || !role) {
+              if (!name || !email || !password || !role || !areaCode) {
                 toast.error('Please fill all required fields');
                 return;
               }
@@ -465,7 +499,9 @@ const AdminUsers: React.FC = () => {
                   email, password, name,
                   role: role as any,
                   department,
-                  qualification
+                  qualification,
+                  areaCode,
+                  areaName: getAreaName(areaCode)
                 });
 
                 // Set createdBy to current admin
@@ -517,6 +553,18 @@ const AdminUsers: React.FC = () => {
                   <input name="department" type="text" placeholder="e.g. Engineering"
                     className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white" />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Area *</label>
+                  <select name="areaCode" required
+                    className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white">
+                    <option value="">Select area</option>
+                    {AREAS.map(area => (
+                      <option key={area.code} value={area.code}>
+                        {area.code} — {area.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <DialogFooter>
                 <button type="button" onClick={() => setIsAddUserDialogOpen(false)}
@@ -548,8 +596,9 @@ const AdminUsers: React.FC = () => {
               const email = formData.get('email') as string;
               const password = formData.get('password') as string;
               const role = formData.get('role') as string;
+              const areaCode = formData.get('areaCode') as string;
               
-              if (!name || !email || !password || !role) {
+              if (!name || !email || !password || !role || !areaCode) {
                 toast.error('Please fill all required fields');
                 return;
               }
@@ -565,7 +614,9 @@ const AdminUsers: React.FC = () => {
                 
                 const result = await regUser({
                   email, password, name,
-                  role: role as any
+                  role: role as any,
+                  areaCode,
+                  areaName: getAreaName(areaCode)
                 });
 
                 if (userData?.uid) {
@@ -606,6 +657,18 @@ const AdminUsers: React.FC = () => {
                     <option value="general_manager">General Manager (GM)</option>
                     <option value="project_manager">Project Manager (PM)</option>
                     <option value="supervisor">Supervisor</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Area *</label>
+                  <select name="areaCode" required
+                    className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white">
+                    <option value="">Select area</option>
+                    {AREAS.map(area => (
+                      <option key={area.code} value={area.code}>
+                        {area.code} — {area.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -660,6 +723,23 @@ const AdminUsers: React.FC = () => {
                   placeholder="e.g. Engineering"
                   className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Area
+                </label>
+                <select
+                  value={editFormData.areaCode}
+                  onChange={(e) => setEditFormData({ ...editFormData, areaCode: e.target.value })}
+                  className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white"
+                >
+                  <option value="">No area</option>
+                  {AREAS.map(area => (
+                    <option key={area.code} value={area.code}>
+                      {area.code} — {area.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
             <DialogFooter>

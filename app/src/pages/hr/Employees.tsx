@@ -3,12 +3,14 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Users, Search, Download } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { getAllUsers } from '@/services/firestoreService';
+import { getAllUsers, getUsersByArea } from '@/services/firestoreService';
 import type { User } from '@/types';
 import { toast } from 'sonner';
 import { formatRole, getInitials, getAvatarColor } from '@/utils/helpers';
+import { useAuth } from '@/context/AuthContext';
 
 const HREmployees: React.FC = () => {
+  const { userData: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -17,7 +19,15 @@ const HREmployees: React.FC = () => {
   useEffect(() => { loadUsers(); }, []);
 
   const loadUsers = async () => {
-    try { setIsLoading(true); setUsers(await getAllUsers()); }
+    try { 
+      setIsLoading(true);
+      // HR sees only users from their own area
+      if (currentUser?.areaCode) {
+        setUsers(await getUsersByArea(currentUser.areaCode));
+      } else {
+        setUsers(await getAllUsers());
+      }
+    }
     catch { toast.error('Failed to load employees'); }
     finally { setIsLoading(false); }
   };
@@ -96,6 +106,7 @@ const HREmployees: React.FC = () => {
                   <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
                     <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Employee</th>
                     <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Role</th>
+                    <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Area</th>
                     <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Department</th>
                     <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Status</th>
                   </tr>
@@ -110,6 +121,13 @@ const HREmployees: React.FC = () => {
                         </div>
                       </td>
                       <td className="py-4 px-6"><span className="px-3 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">{formatRole(user.role)}</span></td>
+                      <td className="py-4 px-6">
+                        {user.areaCode ? (
+                          <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" title={user.areaName || ''}>{user.areaCode}</span>
+                        ) : (
+                          <span className="text-gray-400 text-sm">—</span>
+                        )}
+                      </td>
                       <td className="py-4 px-6 text-gray-600 dark:text-gray-400">{user.department || '-'}</td>
                       <td className="py-4 px-6"><span className={`px-3 py-1 rounded-full text-xs font-medium ${user.isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>{user.isActive ? 'Active' : 'Inactive'}</span></td>
                     </tr>

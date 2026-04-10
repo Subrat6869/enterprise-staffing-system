@@ -23,6 +23,7 @@ import { getAllUsers, getAllProjects, getAllDepartments, getAllTasks } from '@/s
 import type { User, Project, Department, Task } from '@/types';
 import { toast } from 'sonner';
 import { formatNumber } from '@/utils/helpers';
+import { formatArea } from '@/data/areaData';
 import {
   BarChart,
   Bar,
@@ -169,6 +170,11 @@ const ManagerDashboard: React.FC = () => {
           <p className="text-gray-500 dark:text-gray-400 mt-1">
             Welcome back, {userData?.name}. Overview of company performance.
           </p>
+          {userData?.areaCode && (
+            <p className="text-sm font-medium text-teal-600 dark:text-teal-400 mt-1">
+              📍 {formatArea(userData.areaCode, userData.areaName)}
+            </p>
+          )}
         </div>
 
         {/* Stats Grid */}

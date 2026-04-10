@@ -20,7 +20,8 @@ import {
   Loader2,
   CheckCircle,
   Sun,
-  Moon
+  Moon,
+  MapPin
 } from 'lucide-react';
 import { registerUser } from '@/services/authService';
 import { getAllDepartments } from '@/services/firestoreService';
@@ -28,6 +29,7 @@ import { useDarkMode } from '@/hooks/useDarkMode';
 import { toast } from 'sonner';
 import type { UserRole } from '@/types';
 import MCLLogo from '@/components/ui/MCLLogo';
+import { AREAS, getAreaName } from '@/data/areaData';
 
 interface RegisterFormData {
   name: string;
@@ -37,6 +39,7 @@ interface RegisterFormData {
   role: Exclude<UserRole, 'admin' | 'hr' | 'general_manager' | 'supervisor' | 'project_manager'>;
   department: string;
   qualification: string;
+  areaCode: string;
 }
 
 const availableRoles = [
@@ -108,7 +111,9 @@ const Register: React.FC = () => {
         role: data.role,
         department: data.department,
         qualification: data.qualification,
-        certificate: certificate || undefined
+        certificate: certificate || undefined,
+        areaCode: data.areaCode,
+        areaName: getAreaName(data.areaCode)
       });
 
       toast.success('Registration successful! Please login.');
@@ -318,6 +323,29 @@ const Register: React.FC = () => {
             >
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Area *
+                </label>
+                <div className="relative">
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <select
+                    {...register('areaCode', { required: 'Area is required' })}
+                    className="w-full pl-12 pr-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all appearance-none"
+                  >
+                    <option value="">Select your area</option>
+                    {AREAS.map((area) => (
+                      <option key={area.code} value={area.code}>
+                        {area.code} — {area.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {errors.areaCode && (
+                  <p className="mt-1 text-sm text-red-500">{errors.areaCode.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Role *
                 </label>
                 <div className="relative">
@@ -441,6 +469,12 @@ const Register: React.FC = () => {
                   <p className="text-gray-600 dark:text-gray-400">
                     <span className="font-medium">Role:</span> {watch('role')?.replace('_', ' ')}
                   </p>
+                  {watch('areaCode') && (
+                    <p className="text-gray-600 dark:text-gray-400">
+                      <span className="font-medium">Area:</span>{' '}
+                      {watch('areaCode')} — {getAreaName(watch('areaCode'))}
+                    </p>
+                  )}
                   {watch('department') && (
                     <p className="text-gray-600 dark:text-gray-400">
                       <span className="font-medium">Department:</span>{' '}

@@ -27,6 +27,7 @@ import {
 import type { Task, DailyWork, Notice } from '@/types';
 import { toast } from 'sonner';
 import { formatDate, formatRelativeTime } from '@/utils/helpers';
+import { formatArea } from '@/data/areaData';
 import {
   Dialog,
   DialogContent,
@@ -161,6 +162,11 @@ const InternDashboard: React.FC = () => {
             <p className="text-gray-500 dark:text-gray-400 mt-1">
               Welcome back, {userData?.name}. Track your learning progress.
             </p>
+            {userData?.areaCode && (
+              <p className="text-sm font-medium text-teal-600 dark:text-teal-400 mt-1">
+                📍 {formatArea(userData.areaCode, userData.areaName)}
+              </p>
+            )}
           </div>
           <button
             onClick={() => setIsUpdateDialogOpen(true)}

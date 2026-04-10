@@ -182,6 +182,11 @@ const Sidebar = ({ isCollapsed, onToggle, isMobile = false }: SidebarProps) => {
               <p className="text-[10px] text-white/60 truncate">
                 {formatRole(userData?.role || '')}
               </p>
+              {userData?.areaCode && (
+                <p className="text-[10px] text-teal-300/80 truncate mt-0.5" title={userData.areaName || ''}>
+                  📍 {userData.areaCode} — {userData.areaName || ''}
+                </p>
+              )}
             </div>
           )}
           

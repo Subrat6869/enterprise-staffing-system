@@ -14,6 +14,7 @@ import { getUsersByDepartment, getAllTasks, getDailyWorkByEmployee, getTeamsBySu
 import type { User, Task, DailyWork, Team } from '@/types';
 import { toast } from 'sonner';
 import { formatDate, getInitials, getAvatarColor } from '@/utils/helpers';
+import { formatArea } from '@/data/areaData';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
@@ -88,6 +89,11 @@ const SupervisorDashboard: React.FC = () => {
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Supervisor Dashboard</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">Welcome back, {userData?.name}. Monitor your team's progress.</p>
+          {userData?.areaCode && (
+            <p className="text-sm font-medium text-teal-600 dark:text-teal-400 mt-1">
+              📍 {formatArea(userData.areaCode, userData.areaName)}
+            </p>
+          )}
         </div>
 
         {/* Stats Grid */}

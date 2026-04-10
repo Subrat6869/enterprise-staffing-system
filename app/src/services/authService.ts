@@ -28,7 +28,7 @@ googleProvider.addScope('email');
 export const registerUser = async (
   data: RegistrationData
 ): Promise<{ userData: User }> => {
-  const { email, password, name, role, department, qualification, certificate } = data;
+  const { email, password, name, role, department, qualification, certificate, areaCode, areaName } = data;
 
   // Use a secondary Firebase app to create the user without logging out the admin
   const { initializeApp, deleteApp } = await import('firebase/app');
@@ -65,7 +65,9 @@ export const registerUser = async (
       certificateURL,
       certificateVerified: false,
       skills: [],
-      experience: 0
+      experience: 0,
+      areaCode: areaCode || '',
+      areaName: areaName || ''
     };
 
     await setDoc(doc(db, 'users', firebaseUser.uid), {

@@ -4,13 +4,14 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { CheckCircle, XCircle, Clock, Users, AlertTriangle, FileText } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Users, AlertTriangle, FileText, MapPin } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { getAllUsers, updateUser } from '@/services/firestoreService';
+import { getAllUsers, getUsersByArea, updateUser } from '@/services/firestoreService';
 import type { User, ApprovalStatus } from '@/types';
 import { toast } from 'sonner';
 import { formatRole, getInitials, getAvatarColor } from '@/utils/helpers';
 import { useAuth } from '@/context/AuthContext';
+import { formatArea } from '@/data/areaData';
 
 type FilterType = 'all' | 'pending' | 'approved' | 'rejected';
 
@@ -24,8 +25,14 @@ const HRVerifications: React.FC = () => {
 
   const loadData = async () => {
     try { 
-      setIsLoading(true); 
-      const all = await getAllUsers(); 
+      setIsLoading(true);
+      // HR sees only users from their own area
+      let all: User[];
+      if (currentUser?.areaCode) {
+        all = await getUsersByArea(currentUser.areaCode);
+      } else {
+        all = await getAllUsers();
+      }
       setUsers(all.filter(u => ['employee', 'intern', 'apprentice'].includes(u.role))); 
     }
     catch { toast.error('Failed to load'); }
@@ -76,6 +83,14 @@ const HRVerifications: React.FC = () => {
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">User Approvals</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">Approve employees, interns & apprentices before they can login</p>
+          {currentUser?.areaCode && (
+            <div className="flex items-center gap-2 mt-2">
+              <MapPin className="w-4 h-4 text-teal-600" />
+              <span className="text-sm font-medium text-teal-600 dark:text-teal-400">
+                {formatArea(currentUser.areaCode, currentUser.areaName)}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
@@ -125,6 +140,11 @@ const HRVerifications: React.FC = () => {
                     <p className="text-xs sm:text-sm text-gray-500 truncate">{user.email}</p>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">{formatRole(user.role)}</span>
+                      {user.areaCode && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" title={user.areaName || ''}>
+                          Area: {user.areaCode}
+                        </span>
+                      )}
                       {user.certificateURL && (
                         <a href={user.certificateURL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[10px] sm:text-xs text-blue-600 hover:text-blue-700">
                           <FileText className="w-3 h-3" /> Certificate

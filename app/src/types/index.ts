@@ -40,6 +40,8 @@ export interface User {
   verifiedBy?: string; // HR UID who approved/rejected this user
   assignedManager?: string;
   assignedSupervisor?: string;
+  areaCode?: string;      // Area code (e.g. '001')
+  areaName?: string;      // Area name (e.g. 'MAHANADI COAL FIELD')
   mfaEnabled?: boolean;   // Whether 2FA is enabled
   mfaSecret?: string;     // TOTP secret for Google Authenticator
 }
@@ -231,4 +233,6 @@ export interface RegistrationData {
   department?: string;
   qualification?: string;
   certificate?: File;
+  areaCode?: string;      // Area code (e.g. '001')
+  areaName?: string;      // Area name (e.g. 'MAHANADI COAL FIELD')
 }

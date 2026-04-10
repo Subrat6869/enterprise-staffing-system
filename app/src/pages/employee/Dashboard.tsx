@@ -11,6 +11,7 @@ import { getTasksByEmployee, getProjectsByEmployee, submitDailyWork, getDailyWor
 import type { Task, Project, DailyWork, Notice } from '@/types';
 import { toast } from 'sonner';
 import { formatDate, formatRelativeTime } from '@/utils/helpers';
+import { formatArea } from '@/data/areaData';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -144,6 +145,11 @@ const EmployeeDashboard: React.FC = () => {
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">My Dashboard</h1>
             <p className="text-gray-500 dark:text-gray-400 mt-1">Welcome back, {userData?.name}. Here's your work overview.</p>
+            {userData?.areaCode && (
+              <p className="text-sm font-medium text-teal-600 dark:text-teal-400 mt-1">
+                📍 {formatArea(userData.areaCode, userData.areaName)}
+              </p>
+            )}
           </div>
           <button onClick={() => setIsWorkDialogOpen(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-600 text-white hover:bg-teal-700 transition-colors">

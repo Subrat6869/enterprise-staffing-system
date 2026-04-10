@@ -13,6 +13,7 @@ import { getProjectsByManager, getTasksByProject, getAllUsers, createProject, cr
 import type { Project, Task, User, DailyWork } from '@/types';
 import { toast } from 'sonner';
 import { formatDate, getInitials, getAvatarColor } from '@/utils/helpers';
+import { formatArea } from '@/data/areaData';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
@@ -151,6 +152,11 @@ const ProjectManagerDashboard: React.FC = () => {
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Project Manager Dashboard</h1>
             <p className="text-gray-500 dark:text-gray-400 mt-1">Welcome back, {userData?.name}. Manage your projects and team.</p>
+            {userData?.areaCode && (
+              <p className="text-sm font-medium text-teal-600 dark:text-teal-400 mt-1">
+                📍 {formatArea(userData.areaCode, userData.areaName)}
+              </p>
+            )}
           </div>
           <button onClick={() => setIsProjectDialogOpen(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-600 text-white hover:bg-teal-700 transition-colors">

@@ -14,14 +14,16 @@ import {
   Search,
   CheckCircle,
   XCircle,
-  Eye
+  Eye,
+  MapPin
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/context/AuthContext';
-import { getAllUsers, updateUser } from '@/services/firestoreService';
+import { getAllUsers, getUsersByArea, updateUser } from '@/services/firestoreService';
 import type { User } from '@/types';
 import { toast } from 'sonner';
 import { formatRole, getInitials, getAvatarColor } from '@/utils/helpers';
+import { formatArea } from '@/data/areaData';
 import {
   Dialog,
   DialogContent,
@@ -47,7 +49,13 @@ const HRDashboard: React.FC = () => {
   const loadData = async () => {
     try {
       setIsLoading(true);
-      const allUsers = await getAllUsers();
+      // HR sees only users from their own area
+      let allUsers: User[];
+      if (userData?.areaCode) {
+        allUsers = await getUsersByArea(userData.areaCode);
+      } else {
+        allUsers = await getAllUsers();
+      }
       setUsers(allUsers);
       
       // Filter pending approvals (employee/intern/apprentice who are NOT yet approved)
@@ -125,6 +133,14 @@ const HRDashboard: React.FC = () => {
           <p className="text-gray-500 dark:text-gray-400 mt-1">
             Welcome back, {userData?.name}. Manage employee verifications and records.
           </p>
+          {userData?.areaCode && (
+            <div className="flex items-center gap-2 mt-2">
+              <MapPin className="w-4 h-4 text-teal-600" />
+              <span className="text-sm font-medium text-teal-600 dark:text-teal-400">
+                {formatArea(userData.areaCode, userData.areaName)}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Stats Grid */}

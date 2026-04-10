@@ -11,6 +11,7 @@ import { getAllUsers, updateUser } from '@/services/firestoreService';
 import type { User, ApprovalStatus } from '@/types';
 import { toast } from 'sonner';
 import { formatRole, getInitials, getAvatarColor } from '@/utils/helpers';
+import { AREAS } from '@/data/areaData';
 
 const HIGHER_ROLES = ['admin', 'hr', 'general_manager', 'project_manager', 'supervisor'];
 
@@ -20,6 +21,7 @@ const AdminVerifications: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>('all');
+  const [areaFilter, setAreaFilter] = useState<string>('all');
 
   useEffect(() => { loadData(); }, []);
 
@@ -57,10 +59,9 @@ const AdminVerifications: React.FC = () => {
 
   const filtered = users.filter(u => {
     const status = getStatus(u);
-    if (filter === 'pending') return status === 'pending';
-    if (filter === 'approved') return status === 'approved';
-    if (filter === 'rejected') return status === 'rejected';
-    return true;
+    const matchStatus = filter === 'all' || status === filter;
+    const matchArea = areaFilter === 'all' || u.areaCode === areaFilter;
+    return matchStatus && matchArea;
   });
 
   const counts = {
@@ -99,7 +100,7 @@ const AdminVerifications: React.FC = () => {
         </div>
 
         {/* Filter Tabs */}
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
           {(['all', 'pending', 'approved', 'rejected'] as const).map(f => (
             <button key={f} onClick={() => setFilter(f)}
               className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition-colors ${
@@ -111,6 +112,18 @@ const AdminVerifications: React.FC = () => {
               {f !== 'all' && ` (${counts[f]})`}
             </button>
           ))}
+          <select
+            value={areaFilter}
+            onChange={(e) => setAreaFilter(e.target.value)}
+            className="px-3 sm:px-4 py-2 rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-xs sm:text-sm font-medium focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="all">All Areas</option>
+            {AREAS.map(area => (
+              <option key={area.code} value={area.code}>
+                {area.code} — {area.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* User List */}
@@ -145,6 +158,11 @@ const AdminVerifications: React.FC = () => {
                       <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400">
                         {formatRole(user.role)}
                       </span>
+                      {user.areaCode && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" title={user.areaName || ''}>
+                          Area: {user.areaCode}
+                        </span>
+                      )}
                       {user.department && (
                         <span className="text-[10px] sm:text-xs text-gray-400">• {user.department}</span>
                       )}

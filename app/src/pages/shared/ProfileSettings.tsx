@@ -1,11 +1,12 @@
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { User, Mail, Briefcase, Camera, Shield, Bell, Loader2 } from 'lucide-react';
+import { User, Mail, Briefcase, Camera, Shield, Bell, Loader2, MapPin } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/context/AuthContext';
 import { updateUserProfile, uploadProfilePhoto, changeUserPassword } from '@/services/authService';
 import { getAvatarColor, getInitials, formatRole } from '@/utils/helpers';
 import { toast } from 'sonner';
+import { formatArea } from '@/data/areaData';
 
 const ProfileSettings = () => {
   const { userData, currentUser, refreshUserData } = useAuth();
@@ -214,6 +215,16 @@ const ProfileSettings = () => {
                       <input type="text" value={formatRole(userData?.role || '')} disabled className="w-full pl-10 pr-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-500 cursor-not-allowed" />
                     </div>
                   </div>
+
+                  {userData?.areaCode && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Assigned Area</label>
+                      <div className="relative">
+                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <input type="text" value={formatArea(userData.areaCode, userData.areaName)} disabled className="w-full pl-10 pr-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 text-gray-500 cursor-not-allowed" />
+                      </div>
+                    </div>
+                  )}
 
                   <div className="pt-4 flex justify-end">
                     <button 
