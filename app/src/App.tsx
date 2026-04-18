@@ -54,7 +54,7 @@ const SupervisorReports = lazy(() => import('@/pages/supervisor/Reports'));
 
 // Project Manager Pages
 const ProjectManagerDashboard = lazy(() => import('@/pages/projectManager/Dashboard'));
-const PMProjects = lazy(() => import('@/pages/projectManager/Projects'));
+const PMDepartments = lazy(() => import('@/pages/projectManager/Departments'));
 const PMTasks = lazy(() => import('@/pages/projectManager/Tasks'));
 const PMTeam = lazy(() => import('@/pages/projectManager/Team'));
 const PMReports = lazy(() => import('@/pages/projectManager/Reports'));
@@ -262,10 +262,10 @@ function App() {
             }
           />
           <Route
-            path="/pm/projects"
+            path="/pm/departments"
             element={
               <ProtectedRoute allowedRoles={['project_manager']}>
-                <PMProjects />
+                <PMDepartments />
               </ProtectedRoute>
             }
           />

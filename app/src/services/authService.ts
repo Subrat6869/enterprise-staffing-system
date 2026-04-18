@@ -9,6 +9,9 @@ import {
   GoogleAuthProvider,
   signOut,
   updatePassword,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  verifyBeforeUpdateEmail,
   type User as FirebaseUser,
   type ConfirmationResult
 } from 'firebase/auth';
@@ -28,13 +31,14 @@ googleProvider.addScope('email');
 export const registerUser = async (
   data: RegistrationData
 ): Promise<{ userData: User }> => {
-  const { email, password, name, role, department, qualification, certificate, areaCode, areaName } = data;
+  const { email, password, name, role, department, departmentId, teamId, teamName, qualification, certificate, areaCode, areaName } = data;
 
   // Use a secondary Firebase app to create the user without logging out the admin
   const { initializeApp, deleteApp } = await import('firebase/app');
   const { getAuth, createUserWithEmailAndPassword: createUser, signOut: signOutSecondary, updateProfile: updateProf } = await import('firebase/auth');
   
-  const secondaryApp = initializeApp(auth.app.options, 'secondary-registration');
+  const appName = `secondary-registration-${Date.now()}-${Math.random().toString(36).substring(2)}`;
+  const secondaryApp = initializeApp(auth.app.options, appName);
   const secondaryAuth = getAuth(secondaryApp);
 
   try {
@@ -56,6 +60,9 @@ export const registerUser = async (
       name,
       role,
       department: department || '',
+      departmentId: departmentId || '',
+      teamId: teamId || '',
+      teamName: teamName || '',
       createdAt: new Date(),
       updatedAt: new Date(),
       isActive: false, // Account inactive until HR approves
@@ -75,6 +82,16 @@ export const registerUser = async (
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
+
+    // If a teamId was assigned (e.g. via Bulk Upload), add the user to the team's member array
+    if (teamId) {
+      const { arrayUnion } = await import('firebase/firestore');
+      const teamRef = doc(db, 'teams', teamId);
+      await updateDoc(teamRef, { 
+        memberIds: arrayUnion(firebaseUser.uid),
+        updatedAt: serverTimestamp()
+      }).catch(err => console.error("Failed to add new user to team:", err));
+    }
 
     // Set display name
     await updateProf(firebaseUser, { displayName: name });
@@ -110,13 +127,16 @@ export const loginWithEmail = async (
 
   // Block unapproved users via approvalStatus (with legacy isApproved fallback)
   const status = userData.approvalStatus || (userData.isApproved === true ? 'approved' : 'pending');
+  const HIGHER_ROLES = ['admin', 'hr', 'general_manager', 'project_manager', 'supervisor'];
+  const approver = HIGHER_ROLES.includes(userData.role) ? 'Admin' : 'Area HR';
+
   if (status === 'pending') {
     await signOut(auth);
-    throw new Error('Your account is not verified yet. Please wait for HR approval.');
+    throw new Error(`Login Denied: Awaiting Approval from ${approver}.`);
   }
   if (status === 'rejected') {
     await signOut(auth);
-    throw new Error('Your account has been rejected. Please contact the administrator.');
+    throw new Error(`Your account has been rejected. Please contact ${approver}.`);
   }
 
   // Update last login
@@ -164,13 +184,16 @@ export const loginWithGoogle = async (): Promise<{ user: FirebaseUser; userData:
 
   // Block unapproved/rejected users
   const status = userData.approvalStatus || (userData.isApproved === true ? 'approved' : 'pending');
+  const HIGHER_ROLES = ['admin', 'hr', 'general_manager', 'project_manager', 'supervisor'];
+  const approver = HIGHER_ROLES.includes(userData.role) ? 'Admin' : 'Area HR';
+
   if (status === 'pending') {
     await signOut(auth);
-    throw new Error('Your account is not verified yet. Please wait for HR approval.');
+    throw new Error(`Login Denied: Awaiting Approval from ${approver}.`);
   }
   if (status === 'rejected') {
     await signOut(auth);
-    throw new Error('Your account has been rejected. Please contact the administrator.');
+    throw new Error(`Your account has been rejected. Please contact ${approver}.`);
   }
 
   return { user: firebaseUser, userData };
@@ -187,6 +210,30 @@ export const changeUserPassword = async (
   newPassword: string
 ): Promise<void> => {
   await updatePassword(user, newPassword);
+};
+
+/**
+ * Re-authenticate user with their current password.
+ * Required before sensitive operations (password change, email change).
+ */
+export const reauthenticateUser = async (
+  user: FirebaseUser,
+  currentPassword: string
+): Promise<void> => {
+  const credential = EmailAuthProvider.credential(user.email!, currentPassword);
+  await reauthenticateWithCredential(user, credential);
+};
+
+/**
+ * Change user email. Sends a verification email to the new address.
+ * Requires recent authentication.
+ */
+export const changeUserEmail = async (
+  user: FirebaseUser,
+  newEmail: string
+): Promise<void> => {
+  // Firebase v9: sends verification to new email, then updates on confirmation
+  await verifyBeforeUpdateEmail(user, newEmail);
 };
 
 // Get user data

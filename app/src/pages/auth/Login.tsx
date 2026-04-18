@@ -21,8 +21,8 @@ import {
 import MCLLogo from '@/components/ui/MCLLogo';
 import MathCaptcha from '@/components/auth/MathCaptcha';
 import { loginWithEmail, loginWithGoogle } from '@/services/authService';
+import { logActivity } from '@/services/firestoreService';
 import { useDarkMode } from '@/hooks/useDarkMode';
-import { validateEmail, validatePassword } from '@/utils/validation';
 import { toast } from 'sonner';
 
 interface LoginFormData {
@@ -95,16 +95,15 @@ const Login: React.FC = () => {
       return;
     }
 
-    // Frontend validation
-    const emailResult = validateEmail(data.email);
-    if (!emailResult.valid) {
-      setError('email', { message: emailResult.error });
+    // Login uses relaxed validation — only check non-empty.
+    // Strict rules (uppercase, special chars, etc.) apply only to registration & password changes,
+    // NOT to login — so existing users with old passwords are not blocked.
+    if (!data.email.trim()) {
+      setError('email', { message: 'Email is required' });
       return;
     }
-
-    const pwResult = validatePassword(data.password);
-    if (!pwResult.valid) {
-      setError('password', { message: pwResult.error });
+    if (!data.password) {
+      setError('password', { message: 'Password is required' });
       return;
     }
 
@@ -116,14 +115,18 @@ const Login: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const { userData } = await loginWithEmail(data.email, data.password);
+      // Normalize email to lowercase for backward compatibility with old accounts
+      const { userData } = await loginWithEmail(data.email.trim().toLowerCase(), data.password);
       setFailedAttempts(0);
       toast.success(`Welcome back, ${userData.name}!`);
-      
+      // Log successful login
+      logActivity(userData.uid, userData.name, userData.role, 'LOGIN_SUCCESS', `${userData.name} logged in via email`, 'Auth');
       // Redirect based on role (with MFA check)
       redirectBasedOnRole(userData.role, userData.mfaEnabled);
     } catch (error: any) {
       handleFailedAttempt();
+      // Log failed login attempt
+      logActivity('unknown', data.email, 'unknown', 'LOGIN_FAILED', `Login failed for email ${data.email}`, 'Auth', 'failed');
       toast.error(error.message || 'Failed to login');
     } finally {
       setIsLoading(false);
@@ -141,9 +144,11 @@ const Login: React.FC = () => {
       const { userData } = await loginWithGoogle();
       setFailedAttempts(0);
       toast.success(`Welcome, ${userData.name}!`);
+      logActivity(userData.uid, userData.name, userData.role, 'LOGIN_SUCCESS', `${userData.name} logged in via Google`, 'Auth');
       redirectBasedOnRole(userData.role, userData.mfaEnabled);
     } catch (error: any) {
       handleFailedAttempt();
+      logActivity('unknown', 'Google User', 'unknown', 'LOGIN_FAILED', `Google login failed`, 'Auth', 'failed');
       toast.error(error.message || 'Failed to login with Google');
     } finally {
       setIsGoogleLoading(false);
@@ -280,11 +285,7 @@ const Login: React.FC = () => {
                 <input
                   type="email"
                   {...register('email', { 
-                    required: 'Email is required',
-                    validate: (value) => {
-                      const result = validateEmail(value);
-                      return result.valid || result.error;
-                    }
+                    required: 'Email is required'
                   })}
                   className="w-full pl-12 pr-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
                   placeholder="Enter your email"
@@ -304,15 +305,7 @@ const Login: React.FC = () => {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   {...register('password', { 
-                    required: 'Password is required',
-                    minLength: {
-                      value: 8,
-                      message: 'Password must be at least 8 characters'
-                    },
-                    validate: (value) => {
-                      const result = validatePassword(value);
-                      return result.valid || result.error;
-                    }
+                    required: 'Password is required'
                   })}
                   className="w-full pl-12 pr-12 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
                   placeholder="Enter your password"

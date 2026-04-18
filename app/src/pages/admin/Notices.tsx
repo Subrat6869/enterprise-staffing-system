@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, Plus, Search, Trash2, Edit2, AlertCircle, Globe, Users as UsersIcon, UserIcon } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { getAllNotices, deleteNotice, createNotice, updateNotice, getAllUsers, getAllDepartments } from '@/services/firestoreService';
+import { getAllNotices, deleteNotice, createNotice, updateNotice, getAllUsers, getAllDepartments, logActivity } from '@/services/firestoreService';
 import type { Notice, NoticeType, User, Department } from '@/types';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
@@ -141,6 +141,9 @@ const AdminNotices: React.FC = () => {
           targetRoles: ['all'] as any
         } as any);
         toast.success('Notice created successfully');
+        if (userData?.uid) {
+          logActivity(userData.uid, userData.name, userData.role, 'NOTICE_CREATED', `${userData.name} posted notice: "${formData.title}" (${formData.noticeType})`, 'Notice');
+        }
       }
       closeModal();
       loadNotices();

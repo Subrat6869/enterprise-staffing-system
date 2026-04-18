@@ -42,8 +42,10 @@ export const validateEmail = (email: string): { valid: boolean; error?: string }
 /**
  * Validate password strength:
  * - Minimum 8 characters
- * - At least 1 alphabetic character
+ * - At least 1 uppercase letter
+ * - At least 1 lowercase letter
  * - At least 1 numeric character
+ * - At least 1 special character
  */
 export const validatePassword = (password: string): { valid: boolean; error?: string } => {
   if (!password) return { valid: false, error: 'Password is required' };
@@ -52,12 +54,20 @@ export const validatePassword = (password: string): { valid: boolean; error?: st
     return { valid: false, error: 'Password must be at least 8 characters' };
   }
 
-  if (!/[a-zA-Z]/.test(password)) {
-    return { valid: false, error: 'Password must include at least 1 letter' };
+  if (!/[a-z]/.test(password)) {
+    return { valid: false, error: 'Password must include at least 1 lowercase letter' };
+  }
+
+  if (!/[A-Z]/.test(password)) {
+    return { valid: false, error: 'Password must include at least 1 uppercase letter' };
   }
 
   if (!/[0-9]/.test(password)) {
     return { valid: false, error: 'Password must include at least 1 number' };
+  }
+
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password)) {
+    return { valid: false, error: 'Password must include at least 1 special character (!@#$%^&*...)' };
   }
 
   // Check for weak passwords

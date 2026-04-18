@@ -19,9 +19,12 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { logoutUser } from '@/services/authService';
+import { logActivity } from '@/services/firestoreService';
 import { getInitials, getAvatarColor, formatRelativeTime } from '@/utils/helpers';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '@/firebase/config';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -68,6 +71,41 @@ const Header = ({
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const notifBtnRef = useRef<HTMLButtonElement>(null);
   const [notifDropdownStyle, setNotifDropdownStyle] = useState<React.CSSProperties>({});
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
+
+  // Listen for pending approvals based on role
+  useEffect(() => {
+    if (!userData) return;
+
+    let q;
+    const HIGHER_ROLES = ['admin', 'hr', 'general_manager', 'project_manager', 'supervisor'];
+    const LOWER_ROLES = ['employee', 'intern', 'apprentice'];
+
+    if (userData.role === 'admin') {
+      q = query(
+        collection(db, 'users'),
+        where('approvalStatus', '==', 'pending'),
+        where('role', 'in', HIGHER_ROLES)
+      );
+    } else if (userData.role === 'hr' && userData.areaCode) {
+      q = query(
+        collection(db, 'users'),
+        where('approvalStatus', '==', 'pending'),
+        where('areaCode', '==', userData.areaCode),
+        where('role', 'in', LOWER_ROLES)
+      );
+    } else {
+      return; // No pending approvals to show for this role
+    }
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setPendingApprovalsCount(snapshot.docs.length);
+    }, (error) => {
+      console.error("Error listening to pending approvals:", error);
+    });
+
+    return () => unsubscribe();
+  }, [userData]);
 
   // Calculate dropdown position when notifications open
   const updateNotifPosition = useCallback(() => {
@@ -107,6 +145,9 @@ const Header = ({
 
   const handleLogout = async () => {
     try {
+      if (userData?.uid) {
+        logActivity(userData.uid, userData.name, userData.role, 'LOGOUT', `${userData.name} logged out`, 'Auth');
+      }
       await logoutUser();
       toast.success('Logged out successfully');
       navigate('/login');
@@ -200,9 +241,9 @@ const Header = ({
               className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 transition-colors relative"
             >
               <Bell className="w-5 h-5" />
-              {notificationCount > 0 && (
+              {(notificationCount > 0 || pendingApprovalsCount > 0) && (
                 <span className="absolute top-1 right-1 w-4 h-4 sm:w-5 sm:h-5 bg-red-500 text-white text-[10px] sm:text-xs font-medium rounded-full flex items-center justify-center">
-                  {notificationCount}
+                  {notificationCount + pendingApprovalsCount}
                 </span>
               )}
             </button>
@@ -223,6 +264,24 @@ const Header = ({
                     </h3>
                   </div>
                   <div className="max-h-80 overflow-y-auto">
+                    {pendingApprovalsCount > 0 && (
+                      <div
+                        onClick={() => navigate(userData?.role === 'admin' ? '/admin/verifications' : '/hr/verifications')}
+                        className="p-4 bg-amber-50/50 dark:bg-amber-900/10 hover:bg-amber-100/50 dark:hover:bg-amber-900/20 cursor-pointer border-b border-gray-100 dark:border-gray-800"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-2 h-2 rounded-full mt-2 flex-shrink-0 bg-amber-500" />
+                          <div>
+                            <p className="font-medium text-sm text-gray-900 dark:text-white">
+                              Pending Approvals
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                              You have {pendingApprovalsCount} user(s) waiting for your approval.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {mockNotifications.map((notification) => (
                       <div
                         key={notification.id}

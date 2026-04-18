@@ -1,17 +1,16 @@
 // ============================================
-// PM TEAM PAGE — MEMBER MANAGEMENT
+// PM TEAM PAGE — READ-ONLY MEMBER LIST
 // ============================================
 import * as React from 'react';
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Users, Search, Shield, ShieldOff, MoreHorizontal, UserPlus, Trash2, X } from 'lucide-react';
+import { Users, Search, Shield, ShieldOff, MoreHorizontal, Trash2 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/context/AuthContext';
-import { getAllUsers, getProjectsByManager, getTasksByProject, updateUser, createUser, deleteUser } from '@/services/firestoreService';
-import type { User, Task, UserRole } from '@/types';
+import { getProjectsByManager, getTasksByProject, updateUser, deleteUser, getUsersByArea } from '@/services/firestoreService';
+import type { User, Task } from '@/types';
 import { toast } from 'sonner';
 import { getInitials, getAvatarColor, formatRole } from '@/utils/helpers';
-import { AnimatePresence } from 'framer-motion';
 
 const PMTeam: React.FC = () => {
   const { userData } = useAuth();
@@ -22,20 +21,21 @@ const PMTeam: React.FC = () => {
   const [roleFilter, setRoleFilter] = useState('all');
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
 
-  // Add Member State
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newMember, setNewMember] = useState({ name: '', email: '', role: 'employee' });
-
   useEffect(() => { if (userData?.uid) loadData(); }, [userData]);
 
   const loadData = async () => {
     try {
       setIsLoading(true);
-      const [allUsers, projects] = await Promise.all([
-        getAllUsers(),
+      const [areaUsers, projects] = await Promise.all([
+        getUsersByArea(userData!.areaCode || ''),
         getProjectsByManager(userData!.uid)
       ]);
-      setMembers(allUsers.filter(u => ['employee', 'intern', 'apprentice'].includes(u.role)));
+      setMembers(areaUsers.filter(u => {
+        const isTeamRole = ['employee', 'intern', 'apprentice'].includes(u.role);
+        // If PM is assigned to a specific department, only show members of that department
+        const sameDept = userData?.departmentId ? u.departmentId === userData.departmentId : true;
+        return isTeamRole && sameDept;
+      }));
       const taskResults = await Promise.all(projects.map(p => getTasksByProject(p.id)));
       setTasks(taskResults.flat());
     } catch { toast.error('Failed to load'); }
@@ -61,26 +61,6 @@ const PMTeam: React.FC = () => {
     } catch { toast.error('Failed to delete member'); }
   };
 
-  const handleAddMember = async () => {
-    if (!newMember.name || !newMember.email) { toast.error('Name and email are required'); return; }
-    try {
-      const uid = 'user_' + new Date().getTime().toString();
-      await createUser(uid, {
-        email: newMember.email,
-        name: newMember.name,
-        role: newMember.role as UserRole,
-        departmentId: userData?.departmentId || '',
-        department: userData?.department || '',
-        isActive: true,
-        createdAt: new Date() as any
-      });
-      toast.success('Member added successfully');
-      setShowAddModal(false);
-      setNewMember({ name: '', email: '', role: 'employee' });
-      loadData();
-    } catch { toast.error('Failed to add member'); }
-  };
-
   const filteredMembers = useMemo(() => {
     return members.filter(m => {
       const matchSearch = (m.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -96,12 +76,12 @@ const PMTeam: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Team Members</h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">Manage team members for project assignments</p>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">View team members and their task progress</p>
           </div>
-          <button onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-600 text-white hover:bg-teal-700 transition-colors text-sm font-medium">
-            <UserPlus className="w-4 h-4" /> Add Member
-          </button>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800">
+            <Users className="w-4 h-4 text-teal-600" />
+            <span className="text-sm font-medium text-teal-700 dark:text-teal-400">{members.length} Members</span>
+          </div>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4">
@@ -185,47 +165,6 @@ const PMTeam: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* Add Member Modal */}
-      <AnimatePresence>
-        {showAddModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowAddModal(false)}>
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-6 w-full max-w-lg" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white">Add Team Member</h3>
-                <button onClick={() => setShowAddModal(false)} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"><X className="w-5 h-5" /></button>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name</label>
-                  <input type="text" value={newMember.name} onChange={e => setNewMember({ ...newMember, name: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500" placeholder="John Doe" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email Address</label>
-                  <input type="email" value={newMember.email} onChange={e => setNewMember({ ...newMember, email: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500" placeholder="john@example.com" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
-                  <select value={newMember.role} onChange={e => setNewMember({ ...newMember, role: e.target.value })}
-                    className="w-full px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-teal-500">
-                    <option value="employee">Employee</option><option value="intern">Intern</option><option value="apprentice">Apprentice</option>
-                  </select>
-                </div>
-              </div>
-              <div className="flex gap-3 mt-6">
-                <button onClick={() => setShowAddModal(false)} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-medium">Cancel</button>
-                <button onClick={handleAddMember} disabled={!newMember.name || !newMember.email} className="flex-1 px-4 py-2.5 rounded-xl bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 font-medium flex items-center justify-center gap-2">
-                  <UserPlus className="w-4 h-4" /> Add Member
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </DashboardLayout>
   );
 };

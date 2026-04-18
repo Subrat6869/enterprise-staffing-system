@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { logoutUser } from '@/services/authService';
+import { logActivity } from '@/services/firestoreService';
 import type { UserRole } from '@/types';
 import { formatRole, getInitials } from '@/utils/helpers';
 import { toast } from 'sonner';
@@ -67,7 +68,7 @@ const navItems: NavItem[] = [
   
   // Project Manager
   { path: '/pm/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['project_manager'] },
-  { path: '/pm/projects', label: 'Projects', icon: FolderKanban, roles: ['project_manager'] },
+  { path: '/pm/departments', label: 'Departments', icon: Building2, roles: ['project_manager'] },
   { path: '/pm/tasks', label: 'Tasks', icon: CheckSquare, roles: ['project_manager'] },
   { path: '/pm/team', label: 'Team', icon: Users, roles: ['project_manager'] },
   { path: '/pm/work-submissions', label: 'Work Submissions', icon: ClipboardList, roles: ['project_manager'] },
@@ -97,6 +98,9 @@ const Sidebar = ({ isCollapsed, onToggle, isMobile = false }: SidebarProps) => {
 
   const handleLogout = async () => {
     try {
+      if (userData?.uid) {
+        logActivity(userData.uid, userData.name, userData.role, 'LOGOUT', `${userData.name} logged out`, 'Auth');
+      }
       await logoutUser();
       toast.success('Logged out successfully');
       navigate('/login');

@@ -15,13 +15,17 @@ import {
   where,
   orderBy,
   limit,
-  serverTimestamp
+  serverTimestamp,
+  arrayUnion,
+  arrayRemove
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/firebase/config';
 import type { 
   User, Department, Project, Task, DailyWork, 
-  Report, Notice, Notification, Team 
+  Report, Notice, Notification, Team,
+  ActivityActionType, ActivityModule, ActivityStatus, ActivityLog,
+  UserSettings
 } from '@/types';
 
 // ============================================
@@ -157,6 +161,95 @@ export const updateDepartment = async (
 export const deleteDepartment = async (id: string): Promise<void> => {
   await deleteDoc(doc(db, 'departments', id));
   invalidateCache('departments');
+};
+
+/** Get departments filtered by area code */
+export const getDepartmentsByArea = async (areaCode: string): Promise<Department[]> => {
+  const cacheKey = `departments:area:${areaCode}`;
+  const cached = getCached<Department[]>(cacheKey);
+  if (cached) return cached;
+  const q = query(collection(db, 'departments'), where('areaCode', '==', areaCode));
+  const snap = await getDocs(q);
+  const result = snap.docs.map(d => ({ id: d.id, ...d.data() }) as Department);
+  setCache(cacheKey, result);
+  return result;
+};
+
+/**
+ * Seed all standard departments AND their fixed teams for a given area.
+ * Prevents duplicate departments. Auto-creates the predefined teams for each department.
+ * Returns the count of departments and teams created.
+ */
+export const seedDepartmentsAndTeams = async (
+  areaCode: string,
+  areaName: string
+): Promise<{ deptsCreated: number; teamsCreated: number }> => {
+  // Import here to avoid circular deps
+  const { STANDARD_DEPARTMENTS } = await import('@/data/organizationData');
+
+  // Check if departments already exist for this area
+  const existing = await getDepartmentsByArea(areaCode);
+  if (existing.length > 0) {
+    throw new Error('Departments already exist for this area. Cannot seed again.');
+  }
+
+  let deptsCreated = 0;
+  let teamsCreated = 0;
+
+  for (const deptConfig of STANDARD_DEPARTMENTS) {
+    // Create department
+    const deptId = await createDepartment({
+      name: deptConfig.name,
+      description: deptConfig.description,
+      headId: '',
+      headName: '',
+      employeeCount: 0,
+      projectCount: 0,
+      areaCode,
+      areaName,
+      teamLimit: deptConfig.teamLimit,
+      createdAt: new Date()
+    });
+    deptsCreated++;
+
+    // Auto-create fixed teams for this department
+    for (const teamName of deptConfig.standardTeams) {
+      await addDoc(collection(db, 'teams'), {
+        name: teamName,
+        departmentId: deptId,
+        departmentName: deptConfig.name,
+        supervisorId: '',
+        memberIds: [],
+        areaCode,
+        areaName,
+        status: 'active',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      teamsCreated++;
+    }
+  }
+
+  invalidateCache('departments');
+  invalidateCache('teams');
+  return { deptsCreated, teamsCreated };
+};
+
+/** Get all teams across the system */
+export const getAllTeams = async (): Promise<Team[]> => {
+  const cached = getCached<Team[]>('teams:all');
+  if (cached) return cached;
+  const snap = await getDocs(collection(db, 'teams'));
+  const result = snap.docs.map(d => ({ id: d.id, ...d.data() }) as Team);
+  setCache('teams:all', result);
+  return result;
+};
+
+/** Get teams filtered by area code */
+export const getTeamsByArea = async (areaCode: string): Promise<Team[]> => {
+  const q = query(collection(db, 'teams'), where('areaCode', '==', areaCode));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }) as Team);
 };
 
 // ============================================
@@ -511,6 +604,7 @@ export const createTeam = async (data: Omit<Team, 'id'>): Promise<string> => {
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   });
+  invalidateCache('teams');
   return docRef.id;
 };
 
@@ -535,6 +629,41 @@ export const updateTeam = async (id: string, data: Partial<Team>): Promise<void>
 
 export const deleteTeam = async (id: string): Promise<void> => {
   await deleteDoc(doc(db, 'teams', id));
+  invalidateCache('teams');
+};
+
+// ============================================
+// LOOKUP HELPERS (for bulk upload / validation)
+// ============================================
+
+/** Look up a department by its name within a specific area */
+export const getDepartmentByNameAndArea = async (
+  name: string,
+  areaCode: string
+): Promise<Department | null> => {
+  const q = query(
+    collection(db, 'departments'),
+    where('areaCode', '==', areaCode),
+    where('name', '==', name)
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  return { id: snap.docs[0].id, ...snap.docs[0].data() } as Department;
+};
+
+/** Look up a team by its name within a specific department */
+export const getTeamByNameAndDepartment = async (
+  name: string,
+  departmentId: string
+): Promise<Team | null> => {
+  const q = query(
+    collection(db, 'teams'),
+    where('departmentId', '==', departmentId),
+    where('name', '==', name)
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  return { id: snap.docs[0].id, ...snap.docs[0].data() } as Team;
 };
 
 // ============================================
@@ -545,11 +674,12 @@ export const getDashboardAnalytics = async () => {
   const cached = getCached<any>('analytics:dashboard');
   if (cached) return cached;
 
-  const [users, departments, projects, tasks] = await Promise.all([
+  const [users, departments, projects, tasks, teams] = await Promise.all([
     getAllUsers(),
     getAllDepartments(),
     getAllProjects(),
-    getAllTasks()
+    getAllTasks(),
+    getAllTeams()
   ]);
 
   const totalEmployees = users.filter(u => 
@@ -564,6 +694,24 @@ export const getDashboardAnalytics = async () => {
   ).length;
   const completedTasks = tasks.filter(t => t.status === 'completed').length;
 
+  // Users grouped by area code
+  const usersPerArea: Record<string, number> = {};
+  users.forEach(u => {
+    const ac = u.areaCode || 'unassigned';
+    usersPerArea[ac] = (usersPerArea[ac] || 0) + 1;
+  });
+
+  // Teams grouped by department name
+  const teamsPerDepartment: Record<string, number> = {};
+  teams.forEach(t => {
+    const dn = t.departmentName || 'Unknown';
+    teamsPerDepartment[dn] = (teamsPerDepartment[dn] || 0) + 1;
+  });
+
+  // Total teams and areas with users
+  const totalTeams = teams.length;
+  const totalAreas = new Set(users.map(u => u.areaCode).filter(Boolean)).size;
+
   const result = {
     totalEmployees,
     totalDepartments: departments.length,
@@ -571,7 +719,11 @@ export const getDashboardAnalytics = async () => {
     activeProjects,
     completedProjects,
     pendingTasks,
-    completedTasks
+    completedTasks,
+    usersPerArea,
+    teamsPerDepartment,
+    totalTeams,
+    totalAreas
   };
 
   setCache('analytics:dashboard', result);
@@ -651,4 +803,229 @@ export const getNoticesForUser = async (
 
     return false;
   });
+};
+
+// ============================================
+// ACTIVITY LOGS
+// ============================================
+
+/**
+ * Log a system activity. Fire-and-forget — never throws.
+ * Safe to call from any context without awaiting.
+ */
+export const logActivity = async (
+  userId: string,
+  userName: string,
+  userRole: string,
+  actionType: ActivityActionType,
+  description: string,
+  module: ActivityModule,
+  status: ActivityStatus = 'success'
+): Promise<void> => {
+  try {
+    await addDoc(collection(db, 'activity_logs'), {
+      userId,
+      userName,
+      userRole,
+      actionType,
+      description,
+      module,
+      status,
+      timestamp: serverTimestamp()
+    });
+  } catch (err) {
+    // Never throw — logging should not break user flows
+    console.error('Activity log failed:', err);
+  }
+};
+
+/** Get the most recent activity logs (for Admin Dashboard) */
+export const getRecentActivities = async (count: number = 20): Promise<ActivityLog[]> => {
+  const cached = getCached<ActivityLog[]>(`activities:recent:${count}`);
+  if (cached) return cached;
+
+  const q = query(
+    collection(db, 'activity_logs'),
+    orderBy('timestamp', 'desc'),
+    limit(count)
+  );
+  const snap = await getDocs(q);
+  const result = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as ActivityLog);
+  setCache(`activities:recent:${count}`, result);
+  return result;
+};
+
+// ============================================
+// USER SETTINGS (Notification Preferences)
+// ============================================
+
+const DEFAULT_SETTINGS: UserSettings = {
+  emailNotifications: true,
+  systemNotifications: true
+};
+
+/** Get user settings, creating defaults if not found */
+export const getUserSettings = async (userId: string): Promise<UserSettings> => {
+  const cached = getCached<UserSettings>(`settings:${userId}`);
+  if (cached) return cached;
+
+  const docRef = doc(db, 'user_settings', userId);
+  const snap = await getDoc(docRef);
+  
+  if (!snap.exists()) {
+    // Create default settings
+    await setDoc(docRef, { ...DEFAULT_SETTINGS, updatedAt: serverTimestamp() });
+    setCache(`settings:${userId}`, DEFAULT_SETTINGS);
+    return DEFAULT_SETTINGS;
+  }
+  
+  const settings = snap.data() as UserSettings;
+  setCache(`settings:${userId}`, settings);
+  return settings;
+};
+
+/** Update user notification settings */
+export const updateUserSettings = async (
+  userId: string,
+  settings: Partial<UserSettings>
+): Promise<void> => {
+  const docRef = doc(db, 'user_settings', userId);
+  await setDoc(docRef, { ...settings, updatedAt: serverTimestamp() }, { merge: true });
+  invalidateCache(`settings:${userId}`);
+};
+
+// ============================================
+// TEAM MEMBER MANAGEMENT
+// ============================================
+
+/** Add a user to a team (updates both team.memberIds and user.teamId/teamName) */
+export const addTeamMember = async (teamId: string, userId: string): Promise<void> => {
+  const teamRef = doc(db, 'teams', teamId);
+  const teamSnap = await getDoc(teamRef);
+  if (!teamSnap.exists()) throw new Error('Team not found');
+  const teamData = teamSnap.data();
+
+  // Add to team memberIds
+  await updateDoc(teamRef, { memberIds: arrayUnion(userId), updatedAt: serverTimestamp() });
+
+  // Update user's teamId and teamName
+  const userRef = doc(db, 'users', userId);
+  await updateDoc(userRef, {
+    teamId,
+    teamName: teamData.name || '',
+    departmentId: teamData.departmentId || '',
+    department: teamData.departmentName || '',
+    updatedAt: serverTimestamp()
+  });
+
+  invalidateCache('teams');
+  invalidateCache('users');
+};
+
+/** Remove a user from a team */
+export const removeTeamMember = async (teamId: string, userId: string): Promise<void> => {
+  const teamRef = doc(db, 'teams', teamId);
+  await updateDoc(teamRef, { memberIds: arrayRemove(userId), updatedAt: serverTimestamp() });
+
+  const userRef = doc(db, 'users', userId);
+  await updateDoc(userRef, {
+    teamId: '',
+    teamName: '',
+    updatedAt: serverTimestamp()
+  });
+
+  invalidateCache('teams');
+  invalidateCache('users');
+};
+
+/** Transfer a member from one team to another */
+export const transferTeamMember = async (
+  fromTeamId: string,
+  toTeamId: string,
+  userId: string
+): Promise<void> => {
+  // Remove from old team
+  const fromRef = doc(db, 'teams', fromTeamId);
+  await updateDoc(fromRef, { memberIds: arrayRemove(userId), updatedAt: serverTimestamp() });
+
+  // Add to new team
+  const toRef = doc(db, 'teams', toTeamId);
+  const toSnap = await getDoc(toRef);
+  if (!toSnap.exists()) throw new Error('Target team not found');
+  const toData = toSnap.data();
+  await updateDoc(toRef, { memberIds: arrayUnion(userId), updatedAt: serverTimestamp() });
+
+  // Update user
+  const userRef = doc(db, 'users', userId);
+  await updateDoc(userRef, {
+    teamId: toTeamId,
+    teamName: toData.name || '',
+    departmentId: toData.departmentId || '',
+    department: toData.departmentName || '',
+    updatedAt: serverTimestamp()
+  });
+
+  invalidateCache('teams');
+  invalidateCache('users');
+};
+
+/** Get full User objects for all members of a team */
+export const getTeamMembers = async (teamId: string): Promise<User[]> => {
+  const teamRef = doc(db, 'teams', teamId);
+  const teamSnap = await getDoc(teamRef);
+  if (!teamSnap.exists()) return [];
+  const memberIds: string[] = teamSnap.data().memberIds || [];
+  if (memberIds.length === 0) return [];
+
+  const users: User[] = [];
+  for (const uid of memberIds) {
+    const userSnap = await getDoc(doc(db, 'users', uid));
+    if (userSnap.exists()) {
+      users.push({ uid: userSnap.id, ...userSnap.data() } as User);
+    }
+  }
+  return users;
+};
+
+/** Get users in an area eligible for team assignment.
+ *  If targetTeamId is provided, excludes users already in that team.
+ *  Otherwise returns all team-eligible users in the area.
+ */
+export const getUsersAvailableForTeam = async (areaCode: string, targetTeamId?: string): Promise<User[]> => {
+  const teamRoles = ['employee', 'intern', 'apprentice'];
+  const q = query(collection(db, 'users'), where('areaCode', '==', areaCode));
+  const snap = await getDocs(q);
+
+  let existingMemberIds: string[] = [];
+  if (targetTeamId) {
+    const teamSnap = await getDoc(doc(db, 'teams', targetTeamId));
+    if (teamSnap.exists()) {
+      existingMemberIds = teamSnap.data().memberIds || [];
+    }
+  }
+
+  return snap.docs
+    .map(d => ({ uid: d.id, ...d.data() } as User))
+    .filter(u => teamRoles.includes(u.role) && !existingMemberIds.includes(u.uid));
+};
+
+/** Get tasks scoped to a department */
+export const getTasksByDepartment = async (departmentId: string): Promise<Task[]> => {
+  const q = query(collection(db, 'tasks'), where('departmentId', '==', departmentId));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Task));
+};
+
+/** Get tasks scoped to a team */
+export const getTasksByTeam = async (teamId: string): Promise<Task[]> => {
+  const q = query(collection(db, 'tasks'), where('teamId', '==', teamId));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Task));
+};
+
+/** Get tasks scoped to an area */
+export const getTasksByArea = async (areaCode: string): Promise<Task[]> => {
+  const q = query(collection(db, 'tasks'), where('areaCode', '==', areaCode));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Task));
 };

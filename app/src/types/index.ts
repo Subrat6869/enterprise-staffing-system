@@ -7,7 +7,7 @@ export type UserRole =
   | 'hr' 
   | 'general_manager' 
   | 'supervisor' 
-  | 'project_manager' 
+  | 'project_manager'
   | 'employee' 
   | 'intern' 
   | 'apprentice';
@@ -42,6 +42,8 @@ export interface User {
   assignedSupervisor?: string;
   areaCode?: string;      // Area code (e.g. '001')
   areaName?: string;      // Area name (e.g. 'MAHANADI COAL FIELD')
+  teamId?: string;        // Assigned team ID (for team-level roles)
+  teamName?: string;      // Assigned team name
   mfaEnabled?: boolean;   // Whether 2FA is enabled
   mfaSecret?: string;     // TOTP secret for Google Authenticator
 }
@@ -55,6 +57,9 @@ export interface Department {
   headName?: string;
   employeeCount: number;
   projectCount: number;
+  areaCode?: string;      // Area this department belongs to
+  areaName?: string;
+  teamLimit?: number;     // Max teams allowed in this department
   createdAt: Date;
   updatedAt?: Date;
 }
@@ -63,8 +68,11 @@ export interface Team {
   id: string;
   name: string;
   departmentId: string;
+  departmentName?: string;  // For display
   supervisorId: string;
   memberIds: string[];
+  areaCode?: string;        // Area this team belongs to
+  areaName?: string;
   description?: string;
   status: 'active' | 'inactive' | 'terminated';
   createdAt: Date;
@@ -102,12 +110,20 @@ export interface Task {
   priority: 'low' | 'medium' | 'high' | 'urgent';
   progress: number;
   assignedBy: string;
+  assignedByName?: string;
   assignedAt: Date;
   dueDate?: Date;
   completedAt?: Date;
   createdAt: Date;
   updatedAt?: Date;
   employeeComment?: string;
+  // Hierarchy-aware assignment
+  departmentId?: string;
+  departmentName?: string;
+  teamId?: string;
+  teamName?: string;
+  areaCode?: string;
+  assignmentLevel?: 'department' | 'team' | 'member';
 }
 
 export interface DailyWork {
@@ -229,10 +245,79 @@ export interface RegistrationData {
   email: string;
   password: string;
   name: string;
-  role: UserRole; // Admin can create any role
+  role: UserRole;
   department?: string;
+  departmentId?: string;    // Firestore department doc ID
+  teamId?: string;          // Firestore team doc ID
+  teamName?: string;        // Team display name
   qualification?: string;
   certificate?: File;
-  areaCode?: string;      // Area code (e.g. '001')
-  areaName?: string;      // Area name (e.g. 'MAHANADI COAL FIELD')
+  areaCode?: string;
+  areaName?: string;
+}
+
+// ============================================
+// ACTIVITY LOGS
+// ============================================
+
+export type ActivityActionType =
+  | 'USER_REGISTERED'
+  | 'USER_BULK_UPLOADED'
+  | 'USER_UPDATED'
+  | 'USER_DELETED'
+  | 'USER_ACTIVATED'
+  | 'USER_DEACTIVATED'
+  | 'USER_APPROVED'
+  | 'USER_REJECTED'
+  | 'ROLE_CHANGED'
+  | 'TASK_CREATED'
+  | 'TASK_ASSIGNED'
+  | 'TASK_UPDATED'
+  | 'TASK_COMPLETED'
+  | 'PROJECT_CREATED'
+  | 'PROJECT_UPDATED'
+  | 'DEPARTMENT_CREATED'
+  | 'DEPARTMENT_UPDATED'
+  | 'DEPARTMENT_SEEDED'
+  | 'TEAM_CREATED'
+  | 'TEAM_UPDATED'
+  | 'TEAM_DELETED'
+  | 'TEAM_MEMBER_ADDED'
+  | 'TEAM_MEMBER_REMOVED'
+  | 'NOTICE_CREATED'
+  | 'LOGIN_SUCCESS'
+  | 'LOGIN_FAILED'
+  | 'LOGOUT';
+
+export type ActivityModule = 
+  | 'User' 
+  | 'Task' 
+  | 'Project' 
+  | 'Department'
+  | 'Team'
+  | 'Notice' 
+  | 'Auth';
+
+export type ActivityStatus = 'success' | 'failed';
+
+export interface ActivityLog {
+  id: string;
+  userId: string;
+  userName: string;
+  userRole: string;
+  actionType: ActivityActionType;
+  description: string;
+  module: ActivityModule;
+  status: ActivityStatus;
+  timestamp: Date;
+}
+
+// ============================================
+// USER SETTINGS
+// ============================================
+
+export interface UserSettings {
+  emailNotifications: boolean;
+  systemNotifications: boolean;
+  updatedAt?: Date;
 }

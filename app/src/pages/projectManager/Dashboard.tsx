@@ -1,16 +1,21 @@
 // ============================================
-// PROJECT MANAGER DASHBOARD — FULLY FUNCTIONAL
+// PROJECT MANAGER DASHBOARD — With Department Visibility
 // ============================================
 import * as React from 'react';
 import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
-  FolderKanban, CheckSquare, Users, Clock, Plus, ChevronRight, Search, Filter, Calendar, MessageSquare
+  FolderKanban, Users, Clock, Plus, ChevronRight, Search, Filter,
+  Calendar, MessageSquare, Building2, Layers
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/context/AuthContext';
-import { getProjectsByManager, getTasksByProject, getAllUsers, createProject, createTask, getDailyWorkByEmployee } from '@/services/firestoreService';
-import type { Project, Task, User, DailyWork } from '@/types';
+import {
+  getProjectsByManager, getTasksByProject, createProject, createTask,
+  getDailyWorkByEmployee, getDepartmentsByArea, getTeamsByDepartment,
+  getTasksByArea, getUsersByArea
+} from '@/services/firestoreService';
+import type { Project, Task, User, DailyWork, Department } from '@/types';
 import { toast } from 'sonner';
 import { formatDate, getInitials, getAvatarColor } from '@/utils/helpers';
 import { formatArea } from '@/data/areaData';
@@ -19,10 +24,15 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 
 const ProjectManagerDashboard: React.FC = () => {
   const { userData } = useAuth();
+  const pmArea = userData?.areaCode || '';
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [areaTasks, setAreaTasks] = useState<Task[]>([]);
   const [teamMembers, setTeamMembers] = useState<User[]>([]);
   const [submissions, setSubmissions] = useState<DailyWork[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [deptTeamCounts, setDeptTeamCounts] = useState<Record<string, number>>({});
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false);
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
@@ -41,18 +51,36 @@ const ProjectManagerDashboard: React.FC = () => {
   const loadData = async () => {
     if (!userData?.uid) return;
     try {
-      const [projectsData, usersData] = await Promise.all([
-        getProjectsByManager(userData.uid), getAllUsers()
+      const [projectsData, areaUsers, areaDepts] = await Promise.all([
+        getProjectsByManager(userData.uid),
+        pmArea ? getUsersByArea(pmArea) : Promise.resolve([]),
+        pmArea ? getDepartmentsByArea(pmArea) : Promise.resolve([])
       ]);
       setProjects(projectsData);
-      setTeamMembers(usersData.filter(u => ['employee', 'intern', 'apprentice'].includes(u.role)));
-      // Parallel task fetch
+      setDepartments(areaDepts);
+      setTeamMembers(areaUsers.filter(u => ['employee', 'intern', 'apprentice'].includes(u.role)));
+
+      // Load team counts per department
+      const teamCounts: Record<string, number> = {};
+      for (const dept of areaDepts) {
+        const teams = await getTeamsByDepartment(dept.id);
+        teamCounts[dept.id] = teams.length;
+      }
+      setDeptTeamCounts(teamCounts);
+
+      // Load area tasks
+      if (pmArea) {
+        const aTasksData = await getTasksByArea(pmArea);
+        setAreaTasks(aTasksData);
+      }
+
+      // Project tasks
       const taskResults = await Promise.all(projectsData.map(p => getTasksByProject(p.id)));
       const allTasks = taskResults.flat();
       setTasks(allTasks);
 
-      // Fetch recent daily work for team members involved in PM's projects
-      const empIds = [...new Set(allTasks.map(t => t.employeeId))];
+      // Work submissions
+      const empIds = [...new Set(allTasks.map(t => t.employeeId).filter(Boolean))];
       if (empIds.length > 0) {
         const workResults = await Promise.all(empIds.map(id => getDailyWorkByEmployee(id)));
         setSubmissions(workResults.flat().sort((a, b) => {
@@ -66,16 +94,17 @@ const ProjectManagerDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error loading data:', error);
       toast.error('Failed to load dashboard data');
-    } finally { }
+    }
   };
 
   const handleCreateProject = async () => {
     if (!userData?.uid) return;
     try {
+      const dept = departments.find(d => d.id === newProject.departmentId);
       await createProject({
         name: newProject.name, description: newProject.description,
         departmentId: newProject.departmentId || userData.departmentId || '',
-        departmentName: userData.department || '',
+        departmentName: dept?.name || userData.department || '',
         assignedManagerId: userData.uid, assignedManagerName: userData.name,
         status: 'planning', progress: 0, priority: newProject.priority,
         startDate: new Date(), deadline: new Date(newProject.deadline),
@@ -108,7 +137,6 @@ const ProjectManagerDashboard: React.FC = () => {
     } catch { toast.error('Failed to create task'); }
   };
 
-  // Filtered projects
   const filteredProjects = useMemo(() => {
     return projects.filter(p => {
       const matchSearch = (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -120,12 +148,12 @@ const ProjectManagerDashboard: React.FC = () => {
   }, [projects, searchQuery, statusFilter]);
 
   const activeProjects = projects.filter(p => p.status === 'active').length;
-  const completedProjects = projects.filter(p => p.status === 'completed').length;
-  const pendingTasks = tasks.filter(t => t.status === 'pending').length;
-  // Member performance chart
+  const pendingAreaTasks = areaTasks.filter(t => t.status === 'pending').length;
+
   const memberPerformance = useMemo(() => {
     const members = new Map<string, { name: string; completed: number; pending: number; inProgress: number }>();
-    tasks.forEach(t => {
+    [...tasks, ...areaTasks].forEach(t => {
+      if (!t.employeeId) return;
       if (!members.has(t.employeeId)) {
         members.set(t.employeeId, { name: t.employeeName?.split(' ')[0] || 'Unknown', completed: 0, pending: 0, inProgress: 0 });
       }
@@ -135,12 +163,12 @@ const ProjectManagerDashboard: React.FC = () => {
       else m.pending++;
     });
     return Array.from(members.values()).slice(0, 8);
-  }, [tasks]);
+  }, [tasks, areaTasks]);
 
   const stats = [
+    { title: 'Departments', value: departments.length, icon: Building2, color: 'bg-indigo-500' },
     { title: 'Active Projects', value: activeProjects, icon: FolderKanban, color: 'bg-blue-500' },
-    { title: 'Completed', value: completedProjects, icon: CheckSquare, color: 'bg-green-500' },
-    { title: 'Pending Tasks', value: pendingTasks, icon: Clock, color: 'bg-orange-500' },
+    { title: 'Pending Tasks', value: pendingAreaTasks, icon: Clock, color: 'bg-orange-500' },
     { title: 'Team Members', value: teamMembers.length, icon: Users, color: 'bg-purple-500' }
   ];
 
@@ -151,10 +179,10 @@ const ProjectManagerDashboard: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Project Manager Dashboard</h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">Welcome back, {userData?.name}. Manage your projects and team.</p>
-            {userData?.areaCode && (
+            <p className="text-gray-500 dark:text-gray-400 mt-1">Welcome back, {userData?.name}. Manage your area operations.</p>
+            {pmArea && (
               <p className="text-sm font-medium text-teal-600 dark:text-teal-400 mt-1">
-                📍 {formatArea(userData.areaCode, userData.areaName)}
+                📍 {formatArea(pmArea, userData?.areaName)}
               </p>
             )}
           </div>
@@ -179,6 +207,36 @@ const ProjectManagerDashboard: React.FC = () => {
             </motion.div>
           ))}
         </div>
+
+        {/* Department Overview */}
+        {departments.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+            className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Departments in Your Area</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {departments.map(dept => (
+                <div key={dept.id} className="p-4 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 rounded-lg bg-teal-50 dark:bg-teal-900/20 flex items-center justify-center">
+                      <Building2 className="w-5 h-5 text-teal-600 dark:text-teal-400" />
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-gray-900 dark:text-white text-sm">{dept.name}</h4>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs text-gray-400 flex items-center gap-1">
+                          <Layers className="w-3 h-3" /> {deptTeamCounts[dept.id] || 0} teams
+                        </span>
+                        <span className="text-xs text-gray-400 flex items-center gap-1">
+                          <Users className="w-3 h-3" /> {dept.employeeCount || 0}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
 
         {/* Team Performance Chart */}
         {memberPerformance.length > 0 && (
@@ -285,18 +343,16 @@ const ProjectManagerDashboard: React.FC = () => {
         {/* Tasks Table */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}
           className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Tasks ({tasks.length})</h3>
-          </div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Recent Tasks ({areaTasks.length > 0 ? areaTasks.length : tasks.length})</h3>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead><tr className="border-b border-gray-200 dark:border-gray-800">
-                {['Task','Project','Assigned To','Status','Progress'].map(h => (
+                {['Task','Department','Assigned To','Status','Progress'].map(h => (
                   <th key={h} className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">{h}</th>
                 ))}
               </tr></thead>
               <tbody>
-                {tasks.slice(0, 8).map(task => (
+                {(areaTasks.length > 0 ? areaTasks : tasks).slice(0, 10).map(task => (
                   <tr key={task.id} className="border-b border-gray-100 dark:border-gray-800/50">
                     <td className="py-4 px-4">
                       <p className="font-medium text-gray-900 dark:text-white">{task.title}</p>
@@ -307,12 +363,16 @@ const ProjectManagerDashboard: React.FC = () => {
                         </p>
                       )}
                     </td>
-                    <td className="py-4 px-4 text-gray-600 dark:text-gray-400">{task.projectName}</td>
+                    <td className="py-4 px-4 text-sm text-gray-600 dark:text-gray-400">{task.departmentName || task.projectName || '-'}</td>
                     <td className="py-4 px-4">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-semibold ${getAvatarColor(task.employeeName)}`}>{getInitials(task.employeeName)}</div>
-                        <span className="text-sm text-gray-600 dark:text-gray-400">{task.employeeName}</span>
-                      </div>
+                      {task.employeeName ? (
+                        <div className="flex items-center gap-2">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-semibold ${getAvatarColor(task.employeeName)}`}>{getInitials(task.employeeName)}</div>
+                          <span className="text-sm text-gray-600 dark:text-gray-400">{task.employeeName}</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400">{task.assignmentLevel === 'team' ? '👥 Team' : '📁 Dept'}</span>
+                      )}
                     </td>
                     <td className="py-4 px-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${
@@ -339,9 +399,7 @@ const ProjectManagerDashboard: React.FC = () => {
         {/* Recent Work Submissions Grid */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}
           className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Work Submissions</h3>
-          </div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Recent Work Submissions</h3>
           {submissions.length === 0 ? (
             <div className="p-8 text-center text-gray-500 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
               <FolderKanban className="w-8 h-8 mx-auto mb-2 text-gray-400" />
@@ -359,14 +417,10 @@ const ProjectManagerDashboard: React.FC = () => {
                         <p className="text-xs text-gray-500">{formatDate(work.date)}</p>
                       </div>
                     </div>
-                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                      {work.hoursWorked}h
-                    </span>
+                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">{work.hoursWorked}h</span>
                   </div>
                   {work.projectName && (
-                    <span className="inline-block px-2 py-0.5 rounded border border-gray-200 dark:border-gray-600 text-[10px] text-gray-500 mb-2 bg-white dark:bg-gray-800">
-                      {work.projectName}
-                    </span>
+                    <span className="inline-block px-2 py-0.5 rounded border border-gray-200 dark:border-gray-600 text-[10px] text-gray-500 mb-2 bg-white dark:bg-gray-800">{work.projectName}</span>
                   )}
                   <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">{work.description}</p>
                 </div>
@@ -386,6 +440,12 @@ const ProjectManagerDashboard: React.FC = () => {
               <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</label>
                 <textarea value={newProject.description} onChange={e => setNewProject({ ...newProject, description: e.target.value })}
                   className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white" rows={3} placeholder="Enter project description" /></div>
+              <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Department</label>
+                <select value={newProject.departmentId} onChange={e => setNewProject({ ...newProject, departmentId: e.target.value })}
+                  className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white">
+                  <option value="">Select department</option>
+                  {departments.map(d => (<option key={d.id} value={d.id}>{d.name}</option>))}
+                </select></div>
               <div className="grid grid-cols-2 gap-4">
                 <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Priority</label>
                   <select value={newProject.priority} onChange={e => setNewProject({ ...newProject, priority: e.target.value as any })}

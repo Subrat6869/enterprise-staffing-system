@@ -13,11 +13,13 @@ import {
   Trash2,
   UserCheck,
   UserX,
-  Download
+  Download,
+  Upload
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { getAllUsers, updateUser, deleteUser } from '@/services/firestoreService';
-import type { User } from '@/types';
+import { getAllUsers, updateUser, deleteUser, logActivity, getDepartmentsByArea, getTeamsByDepartment } from '@/services/firestoreService';
+import { AREA_LEVEL_ROLES, TEAM_LEVEL_ROLES } from '@/data/organizationData';
+import type { User, Department, Team } from '@/types';
 import { toast } from 'sonner';
 import { formatRole, getInitials, getAvatarColor } from '@/utils/helpers';
 import { validateEmail, validatePassword } from '@/utils/validation';
@@ -37,6 +39,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
+import BulkUploadDialog from '@/components/admin/BulkUploadDialog';
+import { db } from '@/firebase/config';
+import { collection, getDocs, doc, updateDoc as firestoreUpdateDoc } from 'firebase/firestore';
 
 const AdminUsers: React.FC = () => {
   const { userData } = useAuth();
@@ -49,9 +54,20 @@ const AdminUsers: React.FC = () => {
   const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
   const [isAddRoleDialogOpen, setIsAddRoleDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editFormData, setEditFormData] = useState({ role: '', department: '', areaCode: '' });
+  const [editFormData, setEditFormData] = useState({ role: '', department: '', areaCode: '', departmentId: '', teamId: '', teamName: '' });
+
+  // Edit dialog cascading state
+  const [editDepts, setEditDepts] = useState<Department[]>([]);
+  const [editTeams, setEditTeams] = useState<Team[]>([]);
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [areaFilter, setAreaFilter] = useState<string>('all');
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
+
+  // Cascading dropdown state for registration forms
+  const [formDepts, setFormDepts] = useState<Department[]>([]);
+  const [formTeams, setFormTeams] = useState<Team[]>([]);
+  const [formAreaCode, setFormAreaCode] = useState('');
+  const [formDeptId, setFormDeptId] = useState('');
 
   useEffect(() => {
     loadUsers();
@@ -72,6 +88,42 @@ const AdminUsers: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Cascade: when area changes, load departments for that area
+  const handleFormAreaChange = async (areaCode: string) => {
+    setFormAreaCode(areaCode);
+    setFormDeptId('');
+    setFormTeams([]);
+    if (areaCode) {
+      try {
+        const depts = await getDepartmentsByArea(areaCode);
+        setFormDepts(depts);
+      } catch { setFormDepts([]); }
+    } else {
+      setFormDepts([]);
+    }
+  };
+
+  // Cascade: when department changes, load teams for that department
+  const handleFormDeptChange = async (deptId: string) => {
+    setFormDeptId(deptId);
+    if (deptId) {
+      try {
+        const teams = await getTeamsByDepartment(deptId);
+        setFormTeams(teams);
+      } catch { setFormTeams([]); }
+    } else {
+      setFormTeams([]);
+    }
+  };
+
+  // Reset form cascades when dialog closes
+  const resetFormCascade = () => {
+    setFormAreaCode('');
+    setFormDeptId('');
+    setFormDepts([]);
+    setFormTeams([]);
   };
 
   const filterUsers = () => {
@@ -97,10 +149,60 @@ const AdminUsers: React.FC = () => {
     setFilteredUsers(filtered);
   };
 
+  const handleSyncTeams = async () => {
+    try {
+      setIsLoading(true);
+      toast.info('Syncing team members and department counts...');
+      const usersSnap = await getDocs(collection(db, 'users'));
+      const teamsSnap = await getDocs(collection(db, 'teams'));
+      const deptsSnap = await getDocs(collection(db, 'departments'));
+      
+      const allUsersList = usersSnap.docs.map(d => ({ id: d.id, ...d.data() as any }));
+      const allTeamsList = teamsSnap.docs.map(d => ({ id: d.id, ...d.data() as any }));
+      const allDeptsList = deptsSnap.docs.map(d => ({ id: d.id, ...d.data() as any }));
+
+      let updatedTeamsCount = 0;
+      let updatedDeptsCount = 0;
+      
+      for (const team of allTeamsList) {
+        // Find users that claim to belong to this team
+        const expectedMembers = allUsersList.filter(u => u.teamId === team.id).map(u => u.id);
+        
+        // Force the team's member array to exactly match these users
+        await firestoreUpdateDoc(doc(db, 'teams', team.id as string), {
+          memberIds: expectedMembers
+        });
+        updatedTeamsCount++;
+      }
+
+      for (const dept of allDeptsList) {
+        // Find users belonging to this department
+        const deptUsersCount = allUsersList.filter(u => u.departmentId === dept.id).length;
+        
+        await firestoreUpdateDoc(doc(db, 'departments', dept.id as string), {
+          employeeCount: deptUsersCount
+        });
+        updatedDeptsCount++;
+      }
+      
+      toast.success(`Synched ${updatedTeamsCount} teams and ${updatedDeptsCount} departments successfully!`);
+      loadUsers();
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to sync teams and departments');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleToggleStatus = async (user: User) => {
     try {
       await updateUser(user.uid, { isActive: !user.isActive });
-      toast.success(`User ${user.isActive ? 'deactivated' : 'activated'} successfully`);
+      const action = user.isActive ? 'deactivated' : 'activated';
+      toast.success(`User ${action} successfully`);
+      if (userData?.uid) {
+        logActivity(userData.uid, userData.name, userData.role, user.isActive ? 'USER_DEACTIVATED' : 'USER_ACTIVATED', `${userData.name} ${action} user ${user.name}`, 'User');
+      }
       loadUsers();
     } catch (error) {
       toast.error('Failed to update user status');
@@ -111,8 +213,12 @@ const AdminUsers: React.FC = () => {
     if (!selectedUser) return;
 
     try {
+      const deletedName = selectedUser.name;
       await deleteUser(selectedUser.uid);
       toast.success('User deleted successfully');
+      if (userData?.uid) {
+        logActivity(userData.uid, userData.name, userData.role, 'USER_DELETED', `${userData.name} deleted user ${deletedName}`, 'User');
+      }
       setIsDeleteDialogOpen(false);
       loadUsers();
     } catch (error) {
@@ -124,17 +230,56 @@ const AdminUsers: React.FC = () => {
     if (!selectedUser) return;
     try {
       const areaName = getAreaName(editFormData.areaCode);
+      const isTeamRole = TEAM_LEVEL_ROLES.includes(editFormData.role);
+      const selectedDept = editDepts.find(d => d.id === editFormData.departmentId);
+      const selectedTeam = editTeams.find(t => t.id === editFormData.teamId);
       await updateUser(selectedUser.uid, { 
         role: editFormData.role as any, 
-        department: editFormData.department,
+        department: isTeamRole ? (selectedDept?.name || editFormData.department) : '',
+        departmentId: isTeamRole ? (editFormData.departmentId || '') : '',
         areaCode: editFormData.areaCode,
-        areaName: areaName
+        areaName: areaName,
+        teamId: isTeamRole ? (editFormData.teamId || '') : '',
+        teamName: isTeamRole ? (selectedTeam?.name || '') : ''
       });
       toast.success('User updated successfully');
+      if (userData?.uid) {
+        logActivity(userData.uid, userData.name, userData.role, 'USER_UPDATED', `${userData.name} updated user ${selectedUser.name} (role: ${editFormData.role})`, 'User');
+      }
       setIsEditDialogOpen(false);
+      setEditDepts([]);
+      setEditTeams([]);
       loadUsers();
     } catch (error) {
       toast.error('Failed to update user');
+    }
+  };
+
+  // Edit dialog area change cascade
+  const handleEditAreaChange = async (areaCode: string) => {
+    setEditFormData(prev => ({ ...prev, areaCode, departmentId: '', teamId: '', teamName: '', department: '' }));
+    setEditTeams([]);
+    if (areaCode) {
+      try {
+        const depts = await getDepartmentsByArea(areaCode);
+        setEditDepts(depts);
+      } catch { setEditDepts([]); }
+    } else {
+      setEditDepts([]);
+    }
+  };
+
+  // Edit dialog department change cascade
+  const handleEditDeptChange = async (deptId: string) => {
+    const dept = editDepts.find(d => d.id === deptId);
+    setEditFormData(prev => ({ ...prev, departmentId: deptId, department: dept?.name || '', teamId: '', teamName: '' }));
+    if (deptId) {
+      try {
+        const teams = await getTeamsByDepartment(deptId);
+        setEditTeams(teams);
+      } catch { setEditTeams([]); }
+    } else {
+      setEditTeams([]);
     }
   };
 
@@ -193,6 +338,21 @@ const AdminUsers: React.FC = () => {
             >
               <Download className="w-4 h-4" />
               <span className="text-sm font-medium">Export</span>
+            </button>
+            <button 
+              onClick={handleSyncTeams}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-500 text-white hover:bg-orange-600 transition-colors shadow-lg"
+              title="Fix missing team members from old CSV uploads"
+            >
+              <Users className="w-4 h-4" />
+              <span className="text-sm font-medium">Sync Teams</span>
+            </button>
+            <button 
+              onClick={() => setIsBulkUploadOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white hover:from-violet-700 hover:to-purple-700 transition-all shadow-lg shadow-purple-500/25"
+            >
+              <Upload className="w-4 h-4" />
+              <span className="text-sm font-medium">Bulk Upload</span>
             </button>
             <button 
               onClick={() => setIsAddUserDialogOpen(true)}
@@ -341,7 +501,7 @@ const AdminUsers: React.FC = () => {
                               </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => { setSelectedUser(user); setEditFormData({ role: user.role, department: user.department || '', areaCode: user.areaCode || '' }); setIsEditDialogOpen(true); }}>
+                              <DropdownMenuItem onClick={() => { setSelectedUser(user); setEditFormData({ role: user.role, department: user.department || '', areaCode: user.areaCode || '', departmentId: user.departmentId || '', teamId: user.teamId || '', teamName: user.teamName || '' }); setIsEditDialogOpen(true); }}>
                                 <Edit2 className="w-4 h-4 mr-2" /> Edit
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleToggleStatus(user)}>
@@ -409,7 +569,7 @@ const AdminUsers: React.FC = () => {
                       <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-800">
                         <span className="text-[10px] text-gray-400">{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '-'}</span>
                         <div className="flex gap-1">
-                          <button onClick={() => { setSelectedUser(user); setEditFormData({ role: user.role, department: user.department || '', areaCode: user.areaCode || '' }); setIsEditDialogOpen(true); }}
+                          <button onClick={() => { setSelectedUser(user); setEditFormData({ role: user.role, department: user.department || '', areaCode: user.areaCode || '', departmentId: user.departmentId || '', teamId: user.teamId || '', teamName: user.teamName || '' }); setIsEditDialogOpen(true); }}
                             className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"><Edit2 className="w-4 h-4" /></button>
                           <button onClick={() => handleToggleStatus(user)}
                             className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800">
@@ -461,7 +621,7 @@ const AdminUsers: React.FC = () => {
         </Dialog>
 
         {/* Add User Dialog (Employee / Intern / Apprentice) */}
-        <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
+        <Dialog open={isAddUserDialogOpen} onOpenChange={(open) => { setIsAddUserDialogOpen(open); if (!open) resetFormCascade(); }}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>User Registration</DialogTitle>
@@ -477,9 +637,10 @@ const AdminUsers: React.FC = () => {
               const email = formData.get('email') as string;
               const password = formData.get('password') as string;
               const role = formData.get('role') as string;
-              const department = formData.get('department') as string;
               const qualification = formData.get('qualification') as string;
               const areaCode = formData.get('areaCode') as string;
+              const departmentId = formData.get('departmentId') as string;
+              const teamId = formData.get('teamId') as string;
               
               if (!name || !email || !password || !role || !areaCode) {
                 toast.error('Please fill all required fields');
@@ -491,6 +652,10 @@ const AdminUsers: React.FC = () => {
               const pwResult = validatePassword(password);
               if (!pwResult.valid) { toast.error(pwResult.error || 'Invalid password'); return; }
               
+              // Find names for IDs
+              const selectedDept = formDepts.find(d => d.id === departmentId);
+              const selectedTeam = formTeams.find(t => t.id === teamId);
+
               try {
                 const { registerUser: regUser } = await import('@/services/authService');
                 const { updateUser: updateU } = await import('@/services/firestoreService');
@@ -498,19 +663,23 @@ const AdminUsers: React.FC = () => {
                 const result = await regUser({
                   email, password, name,
                   role: role as any,
-                  department,
+                  department: selectedDept?.name || '',
+                  departmentId: departmentId || '',
+                  teamId: teamId || '',
+                  teamName: selectedTeam?.name || '',
                   qualification,
                   areaCode,
                   areaName: getAreaName(areaCode)
                 });
 
-                // Set createdBy to current admin
                 if (userData?.uid) {
                   await updateU(result.userData.uid, { createdBy: userData.uid });
+                  logActivity(userData.uid, userData.name, userData.role, 'USER_REGISTERED', `${userData.name} registered new ${role}: ${name} (${email})`, 'User');
                 }
                 
                 toast.success(`${name} registered successfully! Pending HR verification.`);
                 setIsAddUserDialogOpen(false);
+                resetFormCascade();
                 form.reset();
                 loadUsers();
               } catch (error: any) {
@@ -530,7 +699,7 @@ const AdminUsers: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password *</label>
-                  <input name="password" type="password" required minLength={8} placeholder="Min 8 chars, 1 letter, 1 number"
+                  <input name="password" type="password" required minLength={8} placeholder="Min 8 chars, uppercase, lowercase, number, special"
                     className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white" />
                 </div>
                 <div>
@@ -548,14 +717,11 @@ const AdminUsers: React.FC = () => {
                   <input name="qualification" type="text" placeholder="e.g. B.Tech, MBA..."
                     className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white" />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Department</label>
-                  <input name="department" type="text" placeholder="e.g. Engineering"
-                    className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white" />
-                </div>
+                {/* Area (cascading) */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Area *</label>
-                  <select name="areaCode" required
+                  <select name="areaCode" required value={formAreaCode}
+                    onChange={(e) => handleFormAreaChange(e.target.value)}
                     className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white">
                     <option value="">Select area</option>
                     {AREAS.map(area => (
@@ -565,9 +731,36 @@ const AdminUsers: React.FC = () => {
                     ))}
                   </select>
                 </div>
+                {/* Department (cascading — shows after area selected) */}
+                {formAreaCode && formDepts.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Department</label>
+                    <select name="departmentId" value={formDeptId}
+                      onChange={(e) => handleFormDeptChange(e.target.value)}
+                      className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white">
+                      <option value="">Select department</option>
+                      {formDepts.map(d => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {/* Team (cascading — shows after department selected) */}
+                {formDeptId && formTeams.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Team</label>
+                    <select name="teamId"
+                      className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white">
+                      <option value="">Select team</option>
+                      {formTeams.map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
               <DialogFooter>
-                <button type="button" onClick={() => setIsAddUserDialogOpen(false)}
+                <button type="button" onClick={() => { setIsAddUserDialogOpen(false); resetFormCascade(); }}
                   className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
                   Cancel
                 </button>
@@ -621,6 +814,7 @@ const AdminUsers: React.FC = () => {
 
                 if (userData?.uid) {
                   await updateU(result.userData.uid, { createdBy: userData.uid });
+                  logActivity(userData.uid, userData.name, userData.role, 'USER_REGISTERED', `${userData.name} created role user: ${name} (${role})`, 'User');
                 }
                 
                 toast.success(`${name} created! Pending Admin verification.`);
@@ -685,66 +879,98 @@ const AdminUsers: React.FC = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Edit User Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        {/* Edit User Dialog — Cascading Dropdowns */}
+        <Dialog open={isEditDialogOpen} onOpenChange={(open) => { setIsEditDialogOpen(open); if (!open) { setEditDepts([]); setEditTeams([]); } }}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Edit User</DialogTitle>
               <DialogDescription>
-                Update role and department for {selectedUser?.name}
+                Update role, area, department and team for {selectedUser?.name}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
+              {/* Role */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Role
-                </label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
                 <select
                   value={editFormData.role}
                   onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value })}
-                  className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500"
-                >
-                  <option value="employee">Employee</option>
-                  <option value="manager">Manager</option>
-                  <option value="supervisor">Supervisor</option>
-                  <option value="hr">HR</option>
-                  <option value="project_manager">Project Manager</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Department
-                </label>
-                <input
-                  type="text"
-                  value={editFormData.department}
-                  onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })}
-                  placeholder="e.g. Engineering"
-                  className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Area
-                </label>
-                <select
-                  value={editFormData.areaCode}
-                  onChange={(e) => setEditFormData({ ...editFormData, areaCode: e.target.value })}
                   className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white"
                 >
-                  <option value="">No area</option>
+                  <option value="admin">Admin</option>
+                  <option value="hr">HR</option>
+                  <option value="general_manager">General Manager (GM)</option>
+                  <option value="project_manager">Project Manager (PM)</option>
+                  <option value="supervisor">Supervisor</option>
+                  <option value="employee">Employee</option>
+                  <option value="intern">Intern</option>
+                  <option value="apprentice">Apprentice</option>
+                </select>
+                {AREA_LEVEL_ROLES.includes(editFormData.role) && (
+                  <p className="text-xs text-blue-500 mt-1">ℹ Area-level role — no department/team needed</p>
+                )}
+              </div>
+              {/* Area */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Area</label>
+                <select
+                  value={editFormData.areaCode}
+                  onChange={(e) => handleEditAreaChange(e.target.value)}
+                  className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white"
+                >
+                  <option value="">Select area</option>
                   {AREAS.map(area => (
-                    <option key={area.code} value={area.code}>
-                      {area.code} — {area.name}
-                    </option>
+                    <option key={area.code} value={area.code}>{area.code} — {area.name}</option>
                   ))}
                 </select>
               </div>
+              {/* Department (cascading — team-level roles only) */}
+              {TEAM_LEVEL_ROLES.includes(editFormData.role) && editFormData.areaCode && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Department</label>
+                  {editDepts.length > 0 ? (
+                    <select
+                      value={editFormData.departmentId}
+                      onChange={(e) => handleEditDeptChange(e.target.value)}
+                      className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white"
+                    >
+                      <option value="">Select department</option>
+                      {editDepts.map(d => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-xs text-amber-500 py-2">No departments found for this area. Create them first in Department Management.</p>
+                  )}
+                </div>
+              )}
+              {/* Team (cascading — team-level roles only) */}
+              {TEAM_LEVEL_ROLES.includes(editFormData.role) && editFormData.departmentId && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Team</label>
+                  {editTeams.length > 0 ? (
+                    <select
+                      value={editFormData.teamId}
+                      onChange={(e) => {
+                        const team = editTeams.find(t => t.id === e.target.value);
+                        setEditFormData(prev => ({ ...prev, teamId: e.target.value, teamName: team?.name || '' }));
+                      }}
+                      className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white"
+                    >
+                      <option value="">Select team</option>
+                      {editTeams.map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-xs text-amber-500 py-2">No teams found for this department. Create them first.</p>
+                  )}
+                </div>
+              )}
             </div>
             <DialogFooter>
               <button
-                onClick={() => setIsEditDialogOpen(false)}
+                onClick={() => { setIsEditDialogOpen(false); setEditDepts([]); setEditTeams([]); }}
                 className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
               >
                 Cancel
@@ -758,6 +984,14 @@ const AdminUsers: React.FC = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Bulk Upload Dialog */}
+        <BulkUploadDialog
+          open={isBulkUploadOpen}
+          onOpenChange={setIsBulkUploadOpen}
+          existingEmails={users.map(u => u.email)}
+          onComplete={loadUsers}
+        />
       </div>
     </DashboardLayout>
   );
