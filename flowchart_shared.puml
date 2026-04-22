@@ -1,0 +1,114 @@
+@startuml SharedFeaturesFlowchart
+title Enterprise Staffing System — Shared Features Flowchart
+
+start
+
+:User is Logged In;
+:ProtectedRoute checks\nisAuthenticated and hasRole;
+
+if (Shared Feature?) then (Profile Settings)
+
+  :Open /profile;
+
+  if (Setting?) then (Edit Name)
+    :Update Name;
+    :Save to Firestore;
+
+  elseif (Profile Photo) then
+    :Select Image File;
+    :Upload to Firebase Storage;
+    :Update photoURL;
+
+  elseif (Change Email) then
+    :Enter Current Password;
+    :Reauthenticate User;
+    :Enter New Email;
+    :Send Verification Email;
+    :Update on Confirmation;
+
+  elseif (Change Password) then
+    :Enter Current Password;
+    :Reauthenticate User;
+    :Enter New Password;
+    :updatePassword in Firebase;
+
+  elseif (Phone OTP Setup) then
+    :Go to /phone-setup;
+    :Enter Phone Number;
+    :reCAPTCHA Verify;
+    :Send SMS OTP;
+    :Go to /phone-verify;
+    :Enter OTP Code;
+    :Save phoneNumber;
+    :Set phoneVerified = true;
+
+  elseif (MFA Setup) then
+    :Go to /mfa-setup;
+    :Generate TOTP Secret;
+    :Display QR Code;
+    :Scan with Google Authenticator;
+    :Enter 6-Digit Code;
+    :Verify TOTP;
+    :Save mfaSecret;
+    :Set mfaEnabled = true;
+
+  elseif (Notifications Pref) then
+    :Toggle Email Notifications;
+    :Toggle System Notifications;
+    :Save UserSettings;
+
+  else (Dark Mode)
+    :Toggle Dark Mode;
+    :useDarkMode Hook;
+    :Save to LocalStorage;
+  endif
+
+elseif (AI Chatbot) then
+
+  :Click Chat Icon;
+  :Open Chat Panel;
+  :Enter Message;
+  :Send with Context:\nUser Role, Name;
+  :Save to Firestore;
+  :Get AI Response;
+  :Display Response;
+  :Chat History Persisted;
+  :Option: Clear History;
+
+elseif (Notifications) then
+
+  :Click Bell Icon in Header;
+  :Fetch getUserNotifications;
+  :Show Dropdown:\nTitle, Message, Time;
+  :Show Unread Badge Count;
+  :Click to Mark Read;
+  :Mark All Read;
+
+elseif (Notice Board) then
+
+  :Show on Dashboard;
+  :Fetch getNoticesForUser;
+  :Filter:\nGlobal = All Users\nTeam = Users Team\nIndividual = Specific User;
+  :Display Active Notices;
+  :Category: general, urgent,\npolicy, event;
+
+elseif (Error Boundary) then
+
+  :ErrorBoundary Wraps App;
+  :Catches Runtime Errors;
+  :Shows Friendly Error UI;
+  :Reload Option;
+
+else (Logout)
+
+  :Click Logout Button;
+  :Log Activity LOGOUT;
+  :Firebase signOut;
+  :Clear Session;
+  :Redirect to /login;
+
+endif
+
+stop
+
+@enduml

@@ -1,11 +1,11 @@
-// EMPLOYEE WORK LOG PAGE
+// EMPLOYEE WORK LOG PAGE — TASK-BASED SUBMISSION
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Clock, Plus, Send } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/context/AuthContext';
-import { getDailyWorkByEmployee, submitDailyWork } from '@/services/firestoreService';
-import type { DailyWork } from '@/types';
+import { getDailyWorkByEmployee, submitDailyWork, getMyTasks } from '@/services/firestoreService';
+import type { DailyWork, Task } from '@/types';
 import { toast } from 'sonner';
 import { formatDate } from '@/utils/helpers';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -13,22 +13,47 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 const EmployeeWorkLog: React.FC = () => {
   const { userData } = useAuth();
   const [workHistory, setWorkHistory] = useState<DailyWork[]>([]);
+  const [myTasks, setMyTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [form, setForm] = useState({ hoursWorked: '', description: '', accomplishments: '', challenges: '', tomorrowPlan: '' });
+  const [form, setForm] = useState({ taskId: '', hoursWorked: '', description: '', accomplishments: '', challenges: '', tomorrowPlan: '' });
 
   useEffect(() => { if (userData?.uid) loadData(); }, [userData]);
   const loadData = async () => {
-    try { setIsLoading(true); setWorkHistory(await getDailyWorkByEmployee(userData!.uid)); }
-    catch { toast.error('Failed to load'); }
+    try {
+      setIsLoading(true);
+      const [work, tasks] = await Promise.all([
+        getDailyWorkByEmployee(userData!.uid),
+        getMyTasks(userData!)
+      ]);
+      setWorkHistory(work);
+      setMyTasks(tasks);
+    } catch { toast.error('Failed to load'); }
     finally { setIsLoading(false); }
   };
+
+  const selectedTask = myTasks.find(t => t.id === form.taskId);
 
   const handleSubmit = async () => {
     if (!userData?.uid) return;
     try {
-      await submitDailyWork({ employeeId: userData.uid, employeeName: userData.name, date: new Date(), hoursWorked: parseFloat(form.hoursWorked) || 0, description: form.description, accomplishments: form.accomplishments, challenges: form.challenges, tomorrowPlan: form.tomorrowPlan, createdAt: new Date() });
-      toast.success('Work submitted'); setIsDialogOpen(false); setForm({ hoursWorked: '', description: '', accomplishments: '', challenges: '', tomorrowPlan: '' }); loadData();
+      await submitDailyWork({
+        employeeId: userData.uid,
+        employeeName: userData.name,
+        taskId: form.taskId || undefined,
+        taskTitle: selectedTask?.title || undefined,
+        date: new Date(),
+        hoursWorked: parseFloat(form.hoursWorked) || 0,
+        description: form.description,
+        accomplishments: form.accomplishments,
+        challenges: form.challenges,
+        tomorrowPlan: form.tomorrowPlan,
+        createdAt: new Date()
+      });
+      toast.success('Work submitted');
+      setIsDialogOpen(false);
+      setForm({ taskId: '', hoursWorked: '', description: '', accomplishments: '', challenges: '', tomorrowPlan: '' });
+      loadData();
     } catch { toast.error('Submit failed'); }
   };
 
@@ -66,6 +91,7 @@ const EmployeeWorkLog: React.FC = () => {
                 className="bg-white dark:bg-gray-900 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800">
                 <div className="flex items-center justify-between mb-3"><p className="font-medium text-gray-900 dark:text-white">{formatDate(w.date)}</p>
                   <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">{w.hoursWorked}h</span></div>
+                {w.taskTitle && <p className="text-sm font-medium text-teal-600 dark:text-teal-400 mb-1">📋 {w.taskTitle}</p>}
                 <p className="text-sm text-gray-600 dark:text-gray-400">{w.description}</p>
                 {w.accomplishments && <p className="text-sm text-green-600 mt-2">✓ {w.accomplishments}</p>}
               </motion.div>
@@ -75,8 +101,22 @@ const EmployeeWorkLog: React.FC = () => {
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-            <DialogHeader><DialogTitle>Log Daily Work</DialogTitle><DialogDescription>Record your work for today</DialogDescription></DialogHeader>
+            <DialogHeader><DialogTitle>Log Daily Work</DialogTitle><DialogDescription>Select a task and record your work</DialogDescription></DialogHeader>
             <div className="space-y-4 py-4">
+              {/* Task Dropdown */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Task *</label>
+                <select
+                  value={form.taskId}
+                  onChange={e => setForm({ ...form, taskId: e.target.value })}
+                  className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white"
+                >
+                  <option value="">Select a task...</option>
+                  {myTasks.map(t => (
+                    <option key={t.id} value={t.id}>{t.title} — {t.status.replace('_', ' ')}</option>
+                  ))}
+                </select>
+              </div>
               <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Hours Worked *</label>
                 <input type="number" step="0.5" min="0" max="24" value={form.hoursWorked} onChange={e => setForm({ ...form, hoursWorked: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500" placeholder="e.g., 8" /></div>
               <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description *</label>
@@ -86,7 +126,7 @@ const EmployeeWorkLog: React.FC = () => {
             </div>
             <DialogFooter>
               <button onClick={() => setIsDialogOpen(false)} className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300">Cancel</button>
-              <button onClick={handleSubmit} disabled={!form.hoursWorked || !form.description} className="px-4 py-2 rounded-xl bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50"><Send className="w-4 h-4 inline mr-2" />Submit</button>
+              <button onClick={handleSubmit} disabled={!form.taskId || !form.hoursWorked || !form.description} className="px-4 py-2 rounded-xl bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50"><Send className="w-4 h-4 inline mr-2" />Submit</button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

@@ -1,0 +1,305 @@
+@startuml
+title Enterprise Staffing System - Complete Flowchart
+
+start
+
+:User Opens App;
+
+if (Session Active?) then (Yes)
+  :Load User Data;
+else (No)
+  :Show Login Page;
+endif
+
+:=== AUTHENTICATION ===;
+
+if (Login Method?) then (Email)
+  :Enter Email + Password;
+  :Solve Math CAPTCHA;
+  :signInWithEmailAndPassword;
+elseif (Google) then
+  :signInWithPopup;
+  if (New User?) then (Yes)
+    :Create Doc: pending;
+    :Sign Out;
+    stop
+  else (No)
+  endif
+else (Phone OTP)
+  :Enter Phone + reCAPTCHA;
+  :Send OTP > Enter OTP > Verify;
+endif
+
+:Fetch Firestore User Doc;
+
+if (Status?) then (Pending)
+  :Show Awaiting Approval;
+  stop
+elseif (Rejected) then
+  :Show Rejected Message;
+  stop
+else (Approved)
+endif
+
+if (MFA On?) then (Yes)
+  :Enter TOTP Code;
+  if (Valid?) then (No)
+    stop
+  else (Yes)
+  endif
+else (No)
+endif
+
+:Login Success > Log Activity;
+
+:=== ROLE BASED DASHBOARD ===;
+
+if (Role?) then (Admin)
+
+  :ADMIN DASHBOARD;
+  :Cards: Employees, Depts,\nProjects, Approvals, Teams, Areas;
+  :Charts: Users/Area, Teams/Dept,\nProject Status, Task Trends;
+  :Activity Logs Table;
+
+  :--- User Management ---;
+  :Fetch All Users;
+  :Table: Name, Email, Role,\nArea, Dept, Status;
+  :Search + Filter;
+
+  :Register Single User:;
+  :Form: Name, Email, Pass, Role;
+  :Select Area > Dept > Team;
+  :Upload Certificate (intern);
+  :Secondary Firebase App Create;
+  :Firestore Doc: status=pending;
+  :Add to Team memberIds;
+  :Notify HR;
+
+  :Bulk CSV Upload:;
+  :Upload CSV File;
+  :Parse + Validate Each Row;
+  :Check Area, Dept, Team exist;
+  :Batch Register All Valid;
+  :Show Success/Fail Summary;
+
+  :Edit/Activate/Deactivate/Delete User;
+
+  :--- Admin Verifications ---;
+  :Fetch pending: admin, hr,\ngm, pm, supervisor;
+  :Approve: status=approved,\nisActive=true, notify;
+  :Reject: status=rejected, notify;
+
+  :--- Department Management ---;
+  :Select Area (38 areas);
+  :Fetch Depts by Area;
+  if (Depts Exist?) then (No)
+    :Seed 6 Departments:;
+    :System(4 teams),\nOperations(3), Project(3),\nSupport+HR(2),\nFinance+Analytics(2),\nMaintenance(2);
+    :Total 16 Teams Created;
+  else (Yes)
+    :Show Dept Cards;
+    :Expand > View Teams;
+    :View Members;
+    :Assign Head;
+  endif
+
+  :--- Analytics ---;
+  :Fetch All Data;
+  :Users/Area, Teams/Dept,\nProject Status, Task Rate;
+  :Bar + Pie + Line Charts;
+
+  :--- Notices ---;
+  :Create: Title, Message,\nCategory (general/urgent/\npolicy/event);
+  :Type: Global/Team/Individual;
+  :Edit / Delete Notices;
+
+elseif (HR) then
+
+  :HR DASHBOARD;
+  :Area Stats: Employees,\nPending, Depts, Activity;
+
+  :--- Employees ---;
+  :Fetch by hr.areaCode;
+  :Table + Search + Filter;
+  :View/Edit Records;
+
+  :--- HR Verifications ---;
+  :Fetch pending: employee,\nintern, apprentice\nin hr.areaCode;
+  :Review: Name, Email, Role,\nDept, Team, Certificate;
+  :Approve / Reject (single);
+  :Bulk Approve / Reject;
+
+  :--- HR Reports ---;
+  :View Daily/Weekly/Monthly;
+  :Review + Approve Reports;
+
+elseif (General Manager) then
+
+  :GM DASHBOARD;
+  :All Departments Overview;
+  :Project Status Summary;
+
+  :--- Assignments ---;
+  :View All Assignments;
+  :Resource Allocation;
+
+  :--- Departments ---;
+  :Area-wise Breakdown;
+  :Performance Stats;
+
+  :--- Reports ---;
+  :Manager Reports;
+  :Cross-Dept Analytics;
+
+elseif (Supervisor) then
+
+  :SUPERVISOR DASHBOARD;
+  :Teams Overview;
+  :Member Status;
+
+  :--- My Team ---;
+  :Fetch by supervisorId;
+  :Display Members;
+  :Track Performance;
+
+  :--- Work Tracking ---;
+  :Fetch Team Daily Work;
+  :Review by Date;
+  :Track Hours;
+  :Find Missing Submissions;
+
+  :--- Reports ---;
+  :Team Performance;
+  :Work Patterns;
+
+elseif (Project Manager) then
+
+  :PM DASHBOARD;
+  :Active Projects;
+  :Task Summary;
+  :Deadlines;
+
+  :--- Departments Hierarchy ---;
+  :Area > Dept > Team > Members;
+  :Employee Count per Dept;
+
+  :--- Task Management ---;
+  :Select Project;
+  :Enter Title, Desc, Priority, Due;
+  if (Assignment Level?) then (Department)
+    :Assign ALL in Dept;
+  elseif (Team Multi-Select) then
+    :Checkbox Select Teams;
+    :Assign ALL in Teams;
+  else (Individual)
+    :Select Employee;
+  endif
+  :Create Task per Assignee;
+  :Send Notifications;
+  :Update/Reassign/Delete Tasks;
+
+  :--- Team ---;
+  :View Members;
+  :Filter by Dept/Team;
+
+  :--- Work Submissions ---;
+  :Review Daily Logs;
+  :Check Hours + Desc;
+
+  :--- PM Reports ---;
+  :Progress + Analytics;
+  :Export PDF;
+
+elseif (Employee) then
+
+  :EMPLOYEE DASHBOARD;
+  :Tasks: Pending/Progress/Done;
+  :Projects + Deadlines;
+
+  :--- My Projects ---;
+  :Fetch by teamMembers\nor assigned tasks;
+  :Project Cards: Name, Status,\nProgress, Deadline, Manager;
+
+  :--- My Tasks ---;
+  :Fetch by employeeId;
+  :Filter by Status/Priority;
+  :Update Status:\npending > in_progress\n> review > completed;
+  :Update Progress 0-100%;
+  :Add Comment;
+
+  :--- Work Log ---;
+  :Select Date;
+  :Enter: Hours, Description,\nAccomplishments, Challenges,\nTomorrow Plan;
+  :Submit to Firestore;
+  :View Past Entries;
+
+  :--- Reports ---;
+  :Submit Daily/Weekly/Monthly;
+  :Upload File (optional);
+  :View Past + Feedback;
+
+else (Intern / Apprentice)
+
+  :INTERN DASHBOARD;
+  :Tasks + Progress + Mentor;
+
+  :--- My Tasks ---;
+  :View Assigned Tasks;
+  :Update Status + Comments;
+
+  :--- Daily Updates ---;
+  :What Learned, Work Done,\nChallenges, Questions;
+
+  :--- Progress ---;
+  :Completion %;
+  :Skills Tracker;
+  :Timeline;
+
+endif
+
+:=== SHARED FEATURES (All Roles) ===;
+
+:--- Profile Settings ---;
+:Edit Name;
+:Upload Photo > Firebase Storage;
+:Change Email > Verify New Email;
+:Change Password > Reauthenticate;
+:Phone OTP Setup:\nEnter Number > Send OTP > Verify;
+:MFA Setup:\nGenerate Secret > QR Code\n> Scan Authenticator > Verify;
+:Notification Preferences;
+:Dark Mode Toggle;
+
+:--- AI Chatbot ---;
+:Floating Chat Icon;
+:Send Message with Role Context;
+:Save to Firestore;
+:AI Response;
+:Persistent History;
+
+:--- Notifications ---;
+:Bell Icon in Header;
+:Unread Badge Count;
+:Mark Read / Mark All Read;
+
+:--- Notice Board ---;
+:Global: All Users;
+:Team: Specific Team;
+:Individual: Specific User;
+:Categories: general, urgent,\npolicy, event;
+
+:--- Security ---;
+:ProtectedRoute: Auth + Role Check;
+:ErrorBoundary: Catch Errors;
+:Mobile Responsive: Collapsible\nSidebar, Touch Targets 44px;
+
+:=== LOGOUT ===;
+
+:Click Logout;
+:Log Activity LOGOUT;
+:Firebase signOut;
+:Clear Session;
+:Redirect to /login;
+
+stop
+
+@enduml

@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { FolderKanban, Calendar, Search, ChevronDown, ChevronUp, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/context/AuthContext';
-import { getProjectsByEmployee, getTasksByEmployee } from '@/services/firestoreService';
+import { getProjectsByEmployee, getMyTasks } from '@/services/firestoreService';
 import type { Project, Task } from '@/types';
 import { toast } from 'sonner';
 import { formatDate } from '@/utils/helpers';
@@ -27,7 +27,7 @@ const EmployeeProjects: React.FC = () => {
       setIsLoading(true);
       const [p, t] = await Promise.allSettled([
         getProjectsByEmployee(userData!.uid),
-        getTasksByEmployee(userData!.uid)
+        getMyTasks(userData!)
       ]);
       if (p.status === 'fulfilled') setProjects(p.value);
       else { console.error('Projects error:', p.reason); setProjects([]); }

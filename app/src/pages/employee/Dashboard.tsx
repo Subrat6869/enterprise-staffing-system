@@ -7,8 +7,8 @@ import { motion } from 'framer-motion';
 import { CheckSquare, Clock, Calendar, Plus, Bell, Send, TrendingUp } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/context/AuthContext';
-import { getTasksByEmployee, getProjectsByEmployee, submitDailyWork, getDailyWorkByEmployee, getAllNotices, updateTask } from '@/services/firestoreService';
-import type { Task, Project, DailyWork, Notice } from '@/types';
+import { getMyTasks, submitDailyWork, getDailyWorkByEmployee, getAllNotices, updateTask } from '@/services/firestoreService';
+import type { Task, DailyWork, Notice } from '@/types';
 import { toast } from 'sonner';
 import { formatDate, formatRelativeTime } from '@/utils/helpers';
 import { formatArea } from '@/data/areaData';
@@ -18,7 +18,6 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 const EmployeeDashboard: React.FC = () => {
   const { userData } = useAuth();
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
   const [workHistory, setWorkHistory] = useState<DailyWork[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [isWorkDialogOpen, setIsWorkDialogOpen] = useState(false);
@@ -29,8 +28,6 @@ const EmployeeDashboard: React.FC = () => {
   const [isUpdating, setIsUpdating] = useState(false);
 
   const [workForm, setWorkForm] = useState({
-    projectId: '',
-    projectName: '',
     taskId: '',
     taskTitle: '',
     hoursWorked: '',
@@ -44,11 +41,9 @@ const EmployeeDashboard: React.FC = () => {
 
   const loadData = async () => {
     if (!userData?.uid) return;
-    try { setTasks(await getTasksByEmployee(userData.uid)); } catch (e) { console.error('Tasks error:', e); setTasks([]); }
+    try { setTasks(await getMyTasks(userData)); } catch (e) { console.error('Tasks error:', e); setTasks([]); }
     try { setNotices(await getAllNotices(5)); } catch (e) { console.error('Notices error:', e); setNotices([]); }
     try { setWorkHistory(await getDailyWorkByEmployee(userData.uid)); } catch (e) { console.error('Work history error:', e); setWorkHistory([]); }
-    
-    try { setProjects(await getProjectsByEmployee(userData.uid)); } catch (e) { console.error('Projects error:', e); setProjects([]); }
   };
 
   const confirmStatusChange = async () => {
@@ -87,7 +82,6 @@ const EmployeeDashboard: React.FC = () => {
         accomplishments: workForm.accomplishments || '',
         createdAt: new Date()
       };
-      if (workForm.projectId) { workData.projectId = workForm.projectId; workData.projectName = workForm.projectName; }
       if (workForm.taskId) { workData.taskId = workForm.taskId; workData.taskTitle = workForm.taskTitle; }
       if (workForm.challenges) workData.challenges = workForm.challenges;
       if (workForm.tomorrowPlan) workData.tomorrowPlan = workForm.tomorrowPlan;
@@ -95,17 +89,12 @@ const EmployeeDashboard: React.FC = () => {
       await submitDailyWork(workData);
       toast.success('Daily work submitted successfully! Your manager will be notified.');
       setIsWorkDialogOpen(false);
-      setWorkForm({ projectId: '', projectName: '', taskId: '', taskTitle: '', hoursWorked: '', description: '', accomplishments: '', challenges: '', tomorrowPlan: '' });
+      setWorkForm({ taskId: '', taskTitle: '', hoursWorked: '', description: '', accomplishments: '', challenges: '', tomorrowPlan: '' });
       loadData();
     } catch (error) {
       console.error('Submit error:', error);
       toast.error('Failed to submit work');
     }
-  };
-
-  const handleProjectSelect = (projectId: string) => {
-    const project = projects.find(p => p.id === projectId);
-    setWorkForm({ ...workForm, projectId, projectName: project?.name || '', taskId: '', taskTitle: '' });
   };
 
   const handleTaskSelect = (taskId: string) => {
@@ -248,7 +237,7 @@ const EmployeeDashboard: React.FC = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium text-gray-900 dark:text-white">{formatDate(work.date)}</p>
-                        {work.projectName && <span className="text-xs text-teal-600 bg-teal-50 dark:bg-teal-900/20 px-2 py-0.5 rounded-full">{work.projectName}</span>}
+                        {work.taskTitle && <span className="text-xs text-teal-600 bg-teal-50 dark:bg-teal-900/20 px-2 py-0.5 rounded-full">📋 {work.taskTitle}</span>}
                       </div>
                       <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{work.description}</p>
                     </div>
@@ -293,26 +282,15 @@ const EmployeeDashboard: React.FC = () => {
               <DialogDescription>Log your work for today. Your project manager will see this submission.</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
-              {/* Project Selection */}
+              {/* Task Selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Project</label>
-                <select value={workForm.projectId} onChange={e => handleProjectSelect(e.target.value)}
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Task *</label>
+                <select value={workForm.taskId} onChange={e => handleTaskSelect(e.target.value)}
                   className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white">
-                  <option value="">Select project (optional)</option>
-                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  <option value="">Select a task...</option>
+                  {tasks.map(t => <option key={t.id} value={t.id}>{t.title} — {t.status.replace('_', ' ')}</option>)}
                 </select>
               </div>
-              {/* Task Selection */}
-              {workForm.projectId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Task</label>
-                  <select value={workForm.taskId} onChange={e => handleTaskSelect(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white">
-                    <option value="">Select task (optional)</option>
-                    {tasks.filter(t => t.projectId === workForm.projectId).map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
-                  </select>
-                </div>
-              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Hours Worked *</label>
                 <input type="number" step="0.5" min="0" max="24" value={workForm.hoursWorked}
@@ -343,7 +321,7 @@ const EmployeeDashboard: React.FC = () => {
             <DialogFooter>
               <button onClick={() => setIsWorkDialogOpen(false)}
                 className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300">Cancel</button>
-              <button onClick={handleSubmitWork} disabled={!workForm.hoursWorked || !workForm.description}
+              <button onClick={handleSubmitWork} disabled={!workForm.taskId || !workForm.hoursWorked || !workForm.description}
                 className="px-4 py-2 rounded-xl bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 flex items-center gap-2">
                 <Send className="w-4 h-4" />Submit Work
               </button>

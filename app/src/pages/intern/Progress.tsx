@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { TrendingUp, Award, CheckSquare, Clock } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/context/AuthContext';
-import { getTasksByEmployee, getDailyWorkByEmployee } from '@/services/firestoreService';
+import { getMyTasks, getDailyWorkByEmployee } from '@/services/firestoreService';
 import type { Task } from '@/types';
 import { toast } from 'sonner';
 
@@ -18,7 +18,7 @@ const InternProgress: React.FC = () => {
   const loadData = async () => {
     try {
       setIsLoading(true);
-      const [t, w] = await Promise.all([getTasksByEmployee(userData!.uid), getDailyWorkByEmployee(userData!.uid)]);
+      const [t, w] = await Promise.all([getMyTasks(userData!), getDailyWorkByEmployee(userData!.uid)]);
       setTasks(t); setTotalHours(w.reduce((a, x) => a + x.hoursWorked, 0));
     } catch { toast.error('Failed to load'); }
     finally { setIsLoading(false); }

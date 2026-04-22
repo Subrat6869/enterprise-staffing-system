@@ -8,7 +8,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Download, Calendar, ChevronLeft, ChevronRight, CheckCircle, Clock, ClipboardList, TrendingUp } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/context/AuthContext';
-import { getTasksByEmployee, getDailyWorkByEmployee } from '@/services/firestoreService';
+import { getMyTasks, getDailyWorkByEmployee } from '@/services/firestoreService';
 import type { Task, DailyWork } from '@/types';
 import { toast } from 'sonner';
 import { formatDate } from '@/utils/helpers';
@@ -72,7 +72,7 @@ const EmployeeReports: React.FC = () => {
   const loadData = async () => {
     try {
       setIsLoading(true);
-      const [t, w] = await Promise.all([getTasksByEmployee(userData!.uid), getDailyWorkByEmployee(userData!.uid)]);
+      const [t, w] = await Promise.all([getMyTasks(userData!), getDailyWorkByEmployee(userData!.uid)]);
       setTasks(t);
       setWorkHistory(w);
     } catch { toast.error('Failed to load'); }

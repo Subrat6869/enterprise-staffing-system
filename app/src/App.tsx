@@ -42,7 +42,7 @@ const HRReports = lazy(() => import('@/pages/hr/Reports'));
 
 // Manager Pages
 const ManagerDashboard = lazy(() => import('@/pages/manager/Dashboard'));
-const ManagerAssignments = lazy(() => import('@/pages/manager/Assignments'));
+const ManagerWorkProgress = lazy(() => import('@/pages/manager/WorkProgress'));
 const ManagerDepartments = lazy(() => import('@/pages/manager/Departments'));
 const ManagerReports = lazy(() => import('@/pages/manager/Reports'));
 
@@ -62,7 +62,7 @@ const PMWorkSubmissions = lazy(() => import('@/pages/projectManager/WorkSubmissi
 
 // Employee Pages
 const EmployeeDashboard = lazy(() => import('@/pages/employee/Dashboard'));
-const EmployeeProjects = lazy(() => import('@/pages/employee/Projects'));
+
 const EmployeeTasks = lazy(() => import('@/pages/employee/Tasks'));
 const EmployeeWorkLog = lazy(() => import('@/pages/employee/WorkLog'));
 const EmployeeReports = lazy(() => import('@/pages/employee/Reports'));
@@ -194,10 +194,10 @@ function App() {
             }
           />
           <Route
-            path="/manager/assignments"
+            path="/manager/work-progress"
             element={
               <ProtectedRoute allowedRoles={['general_manager']}>
-                <ManagerAssignments />
+                <ManagerWorkProgress />
               </ProtectedRoute>
             }
           />
@@ -311,14 +311,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/employee/projects"
-            element={
-              <ProtectedRoute allowedRoles={['employee']}>
-                <EmployeeProjects />
-              </ProtectedRoute>
-            }
-          />
+
           <Route
             path="/employee/tasks"
             element={

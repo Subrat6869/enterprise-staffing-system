@@ -1,0 +1,116 @@
+@startuml OtherModulesFlowchart
+title Enterprise Staffing System — Manager, Supervisor, Employee, Intern Flowchart
+
+start
+
+if (Role?) then (General Manager)
+
+  :GM Dashboard;
+  :View All Departments;
+  :Project Status Summary;
+  :Team Performance;
+
+  if (GM Action?) then (Assignments)
+    :View All Assignments;
+    :Manage Resource Allocation;
+    :Track Department Workload;
+  elseif (Departments) then
+    :View Department Structure;
+    :Area-wise Breakdown;
+    :Performance Stats;
+  else (Reports)
+    :Generate Manager Reports;
+    :Cross-Department Analytics;
+    :Export Reports;
+  endif
+
+elseif (Supervisor) then
+
+  :Supervisor Dashboard;
+  :Teams Overview;
+  :Member Status;
+  :Pending Reviews;
+
+  if (SV Action?) then (My Team)
+    :Fetch Teams by Supervisor;
+    :Display Team Members;
+    :View Member Details;
+    :Track Performance;
+  elseif (Work Tracking) then
+    :Fetch Daily Work Logs;
+    :Display by Date;
+    :Review Quality;
+    :Track Hours;
+    :Find Missing Submissions;
+  else (Reports)
+    :Team Reports;
+    :Performance Analytics;
+    :Work Patterns;
+  endif
+
+elseif (Employee) then
+
+  :Employee Dashboard;
+  :Tasks Summary: Pending,\nIn Progress, Done;
+  :Active Projects;
+  :Notifications, Deadlines;
+
+  if (Emp Action?) then (Projects)
+    :Fetch My Projects;
+    :Show Project Cards:\nName, Status, Progress,\nDeadline, Manager;
+    :View Details;
+
+  elseif (Tasks) then
+    :Fetch My Tasks;
+    :Display Task List;
+    :Filter by Status or Priority;
+    :Update Status:\npending > in_progress\n> review > completed;
+    :Update Progress 0-100;
+    :Add Comment;
+    :Log TASK_UPDATED;
+
+  elseif (Work Log) then
+    :Select Date;
+    :Enter Hours Worked;
+    :Enter Description;
+    :Enter Accomplishments;
+    :Enter Challenges;
+    :Enter Tomorrow Plan;
+    :Submit to Firestore;
+    :View Past Entries;
+
+  else (Reports)
+    :Submit Report:\nDaily, Weekly, Monthly;
+    :Enter Content and Summary;
+    :Upload File (optional);
+    :Save to Firestore;
+    :View Past Reports;
+  endif
+
+else (Intern or Apprentice)
+
+  :Intern Dashboard;
+  :Tasks Summary;
+  :Progress Overview;
+  :Mentor Info;
+
+  if (Intern Action?) then (Tasks)
+    :View Assigned Tasks;
+    :Update Task Status;
+    :Add Comments;
+  elseif (Daily Updates) then
+    :What I Learned Today;
+    :Work Done;
+    :Challenges Faced;
+    :Questions;
+  else (Progress)
+    :Task Completion Percentage;
+    :Skills Development;
+    :Performance Timeline;
+  endif
+
+endif
+
+stop
+
+@enduml

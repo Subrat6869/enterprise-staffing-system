@@ -1,5 +1,5 @@
 // ============================================
-// GM REPORTS - DEPARTMENT-WISE DETAILED ANALYTICS
+// GM REPORTS — AREA-SCOPED DEPARTMENT & TEAM ANALYTICS
 // ============================================
 import * as React from 'react';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
@@ -8,20 +8,32 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart as RePieChart, Pie, Cell, Legend
 } from 'recharts';
-import { Download, Calendar, ChevronLeft, ChevronRight, Building2, Users, ClipboardList, CheckCircle } from 'lucide-react';
+import { Download, Calendar, ChevronLeft, ChevronRight, Building2, Users, ClipboardList, CheckCircle, MapPin } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { getAllProjects, getAllUsers, getAllDepartments, getAllTasks } from '@/services/firestoreService';
-import type { User, Project, Department, Task } from '@/types';
+import { useAuth } from '@/context/AuthContext';
+import {
+  getDepartmentsByArea,
+  getUsersByArea,
+  getTeamsByArea,
+  getTasksByArea,
+  getProjectsByArea
+} from '@/services/firestoreService';
+import type { User, Project, Department, Task, Team } from '@/types';
 import { toast } from 'sonner';
+import { formatArea } from '@/data/areaData';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 const ManagerReports: React.FC = () => {
+  const { userData } = useAuth();
+  const gmAreaCode = userData?.areaCode || '';
+
   const [isLoading, setIsLoading] = useState(true);
   const [users, setUsers] = useState<User[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
 
   // Calendar state
@@ -51,12 +63,19 @@ const ManagerReports: React.FC = () => {
     }
   }, [showCalendar, updateCalPosition]);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { if (gmAreaCode) loadData(); }, [gmAreaCode]);
+
   const loadData = async () => {
     try {
       setIsLoading(true);
-      const [p, u, d, t] = await Promise.all([getAllProjects(), getAllUsers(), getAllDepartments(), getAllTasks()]);
-      setProjects(p); setUsers(u); setDepartments(d); setTasks(t);
+      const [p, u, d, tm, t] = await Promise.all([
+        getProjectsByArea(gmAreaCode),
+        getUsersByArea(gmAreaCode),
+        getDepartmentsByArea(gmAreaCode),
+        getTeamsByArea(gmAreaCode),
+        getTasksByArea(gmAreaCode)
+      ]);
+      setProjects(p); setUsers(u); setDepartments(d); setTeams(tm); setTasks(t);
     } catch { toast.error('Failed to load data'); }
     finally { setIsLoading(false); }
   };
@@ -100,6 +119,29 @@ const ManagerReports: React.FC = () => {
     });
   }, [departments, users, projects, filteredTasks]);
 
+  // Team-wise breakdown
+  const teamBreakdown = useMemo(() => {
+    return teams.map(team => {
+      const teamMembers = users.filter(u => u.teamId === team.id);
+      const teamTasks = filteredTasks.filter(t => t.teamId === team.id);
+      const completed = teamTasks.filter(t => t.status === 'completed').length;
+      const total = teamTasks.length;
+      const completionPct = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+      return {
+        name: team.name,
+        id: team.id,
+        departmentName: team.departmentName || '',
+        members: teamMembers.length,
+        totalTasks: total,
+        completed,
+        inProgress: teamTasks.filter(t => t.status === 'in_progress').length,
+        pending: teamTasks.filter(t => t.status === 'pending').length,
+        completionPct
+      };
+    });
+  }, [teams, users, filteredTasks]);
+
   // Summary stats
   const totalTasks = filteredTasks.length;
   const completedTasks = filteredTasks.filter(t => t.status === 'completed').length;
@@ -123,20 +165,49 @@ const ManagerReports: React.FC = () => {
 
   // Export CSV
   const handleExport = () => {
-    const header = 'Department,Employees,Projects,Total Tasks,Completed,In Progress,Pending,Completion %\n';
-    const rows = deptBreakdown.map(d =>
+    const areaLabel = formatArea(gmAreaCode, userData?.areaName).replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_');
+
+    // Department breakdown
+    let csv = `Area Report: ${formatArea(gmAreaCode, userData?.areaName)}\n${MONTHS[calMonth]} ${calYear}\n\n`;
+    csv += 'DEPARTMENT BREAKDOWN\n';
+    csv += 'Department,Employees,Projects,Total Tasks,Completed,In Progress,Pending,Completion %\n';
+    csv += deptBreakdown.map(d =>
       `"${d.name}",${d.employees},${d.projects},${d.totalTasks},${d.completed},${d.inProgress},${d.pending},${d.completionPct}%`
     ).join('\n');
-    const csv = header + rows;
+
+    // Team breakdown
+    csv += '\n\nTEAM BREAKDOWN\n';
+    csv += 'Team,Department,Members,Total Tasks,Completed,In Progress,Pending,Completion %\n';
+    csv += teamBreakdown.map(t =>
+      `"${t.name}","${t.departmentName}",${t.members},${t.totalTasks},${t.completed},${t.inProgress},${t.pending},${t.completionPct}%`
+    ).join('\n');
+
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `GM_Report_${MONTHS[calMonth]}_${calYear}.csv`;
+    a.download = `GM_Report_${areaLabel}_${MONTHS[calMonth]}_${calYear}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success('Report exported successfully!');
   };
+
+  // Guard: no area
+  if (!gmAreaCode) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center max-w-md">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
+              <Building2 className="w-8 h-8 text-amber-500" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No Area Assigned</h2>
+            <p className="text-gray-500 dark:text-gray-400">Please contact Admin to assign your area.</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -145,7 +216,11 @@ const ManagerReports: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Monthly Reports</h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">Department-wise performance analysis</p>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">Department & team performance analysis</p>
+            <div className="flex items-center gap-2 mt-1">
+              <MapPin className="w-4 h-4 text-teal-500" />
+              <span className="text-sm font-medium text-teal-600 dark:text-teal-400">{formatArea(gmAreaCode, userData?.areaName)}</span>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             {/* Calendar Picker */}
@@ -289,6 +364,47 @@ const ManagerReports: React.FC = () => {
                     ))}
                     {deptBreakdown.length === 0 && (
                       <tr><td colSpan={8} className="py-8 text-center text-gray-500">No data available for the selected period</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </motion.div>
+
+            {/* Team-wise Detailed Table */}
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+              className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Team-wise Report — {MONTHS[calMonth]} {calYear}</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200 dark:border-gray-800">
+                      {['Team','Department','Members','Total Tasks','Completed','In Progress','Pending','Completion %'].map(h => (
+                        <th key={h} className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {teamBreakdown.map(t => (
+                      <tr key={t.id} className="border-b border-gray-100 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30">
+                        <td className="py-4 px-4 font-medium text-gray-900 dark:text-white">{t.name}</td>
+                        <td className="py-4 px-4 text-gray-600 dark:text-gray-400">{t.departmentName}</td>
+                        <td className="py-4 px-4 text-gray-600 dark:text-gray-400">{t.members}</td>
+                        <td className="py-4 px-4 text-gray-600 dark:text-gray-400">{t.totalTasks}</td>
+                        <td className="py-4 px-4"><span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">{t.completed}</span></td>
+                        <td className="py-4 px-4"><span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">{t.inProgress}</span></td>
+                        <td className="py-4 px-4"><span className="px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">{t.pending}</span></td>
+                        <td className="py-4 px-4">
+                          <div className="flex items-center gap-2">
+                            <div className="w-20 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                              <div className="h-full bg-teal-500 rounded-full" style={{ width: `${t.completionPct}%` }} />
+                            </div>
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t.completionPct}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {teamBreakdown.length === 0 && (
+                      <tr><td colSpan={8} className="py-8 text-center text-gray-500">No team data available for the selected period</td></tr>
                     )}
                   </tbody>
                 </table>

@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { CheckSquare, Calendar, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/context/AuthContext';
-import { getTasksByEmployee, updateTask, getDailyWorkByEmployee } from '@/services/firestoreService';
+import { getMyTasks, updateTask, getDailyWorkByEmployee } from '@/services/firestoreService';
 import type { Task, DailyWork } from '@/types';
 import { toast } from 'sonner';
 import { formatDate } from '@/utils/helpers';
@@ -38,7 +38,7 @@ const EmployeeTasks: React.FC = () => {
     try {
       // setIsLoading(true); // Commented out as per instruction
       const [t, w] = await Promise.all([
-        getTasksByEmployee(userData!.uid),
+        getMyTasks(userData!),
         getDailyWorkByEmployee(userData!.uid)
       ]);
       setTasks(t);

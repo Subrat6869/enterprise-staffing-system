@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { 
-  getTasksByEmployee, getProjectsByEmployee,
+  getMyTasks, getProjectsByEmployee,
   saveChatMessage, getChatHistory, deleteChatMessage, clearChatHistory,
   getAllUsers, getAllProjects, getDashboardAnalytics
 } from '@/services/firestoreService';
@@ -205,7 +205,7 @@ const AIChatbot = () => {
     if (!userData?.uid) return;
     try {
       const [tasksData, projectsData] = await Promise.all([
-        getTasksByEmployee(userData.uid),
+        getMyTasks(userData),
         getProjectsByEmployee(userData.uid)
       ]);
       setTasks(tasksData);

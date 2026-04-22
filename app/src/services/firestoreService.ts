@@ -92,9 +92,16 @@ export const getUsersByRole = async (role: string): Promise<User[]> => {
 };
 
 export const getUsersByDepartment = async (department: string): Promise<User[]> => {
-  const q = query(collection(db, 'users'), where('department', '==', department));
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as User);
+  // Try by department name first
+  const q1 = query(collection(db, 'users'), where('department', '==', department));
+  const snap1 = await getDocs(q1);
+  if (snap1.docs.length > 0) {
+    return snap1.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as User);
+  }
+  // Fallback: try by departmentId (some pages pass departmentId instead of name)
+  const q2 = query(collection(db, 'users'), where('departmentId', '==', department));
+  const snap2 = await getDocs(q2);
+  return snap2.docs.map(doc => ({ uid: doc.id, ...doc.data() }) as User);
 };
 
 export const getUsersByArea = async (areaCode: string): Promise<User[]> => {
@@ -320,6 +327,25 @@ export const getProjectsByEmployee = async (employeeId: string): Promise<Project
   return projects;
 };
 
+/** Get projects filtered by area code (through department relation) */
+export const getProjectsByArea = async (areaCode: string): Promise<Project[]> => {
+  const cacheKey = `projects:area:${areaCode}`;
+  const cached = getCached<Project[]>(cacheKey);
+  if (cached) return cached;
+
+  // Get all department IDs in this area
+  const areaDepts = await getDepartmentsByArea(areaCode);
+  const deptIds = new Set(areaDepts.map(d => d.id));
+
+  if (deptIds.size === 0) return [];
+
+  // Get all projects and filter by area department IDs
+  const allProjects = await getAllProjects();
+  const result = allProjects.filter(p => deptIds.has(p.departmentId));
+  setCache(cacheKey, result);
+  return result;
+};
+
 export const updateProject = async (id: string, data: Partial<Project>): Promise<void> => {
   await updateDoc(doc(db, 'projects', id), {
     ...data,
@@ -372,6 +398,83 @@ export const getTasksByEmployee = async (employeeId: string): Promise<Task[]> =>
   const q = query(collection(db, 'tasks'), where('employeeId', '==', employeeId));
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Task);
+};
+
+// New Dynamic Member Task Fetch (Area -> Dept -> Team/Member logic)
+// Resilient: tries departmentId first, then falls back to department (name).
+export const getMyTasks = async (user: User): Promise<Task[]> => {
+  let allDeptTasks: Task[] = [];
+  
+  // Strategy 1: Try fetching by departmentId
+  if (user.departmentId) {
+    const q = query(collection(db, 'tasks'), where('departmentId', '==', user.departmentId));
+    const snap = await getDocs(q);
+    allDeptTasks = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Task);
+  }
+  
+  // Strategy 2: Try by departmentName
+  if (allDeptTasks.length === 0 && user.department) {
+    const q2 = query(collection(db, 'tasks'), where('departmentName', '==', user.department));
+    const snap2 = await getDocs(q2);
+    allDeptTasks = snap2.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Task);
+  }
+  
+  // Strategy 3: Try departmentId matching the department string
+  if (allDeptTasks.length === 0 && user.department) {
+    const q3 = query(collection(db, 'tasks'), where('departmentId', '==', user.department));
+    const snap3 = await getDocs(q3);
+    allDeptTasks = snap3.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Task);
+  }
+
+  // Strategy 4: Fallback to areaCode (for supervisors with no department assigned)
+  if (allDeptTasks.length === 0 && user.areaCode) {
+    const q4 = query(collection(db, 'tasks'), where('areaCode', '==', user.areaCode));
+    const snap4 = await getDocs(q4);
+    allDeptTasks = snap4.docs.map(doc => ({ id: doc.id, ...doc.data() }) as Task);
+  }
+
+  // For supervisors: show ALL tasks in their scope (dept + team filtering)
+  // For members: filter to only their specific assignment
+  const isSupervisor = user.role === 'supervisor';
+  
+  // Filter dynamically based on hierarchy structure
+  return allDeptTasks.filter(t => {
+    // Supervisors see everything in their department scope
+    if (isSupervisor) {
+      // If supervisor has a team, show department-wide AND their team tasks
+      if (user.teamId) {
+        return t.assignmentLevel === 'department' || 
+               t.teamId === user.teamId || 
+               !t.assignmentLevel; // legacy tasks
+      }
+      // If supervisor has no team, they see all department tasks
+      return true;
+    }
+    
+    // ---- Member logic below ----
+    // 1. Specifically assigned to this member
+    if (t.assignmentLevel === 'member' && t.employeeId === user.uid) return true;
+    
+    // 2. Assigned to the member's team
+    if ((t.assignmentLevel === 'team' || t.assignmentLevel === 'multi_team') && t.teamId === user.teamId) return true;
+    
+    // 3. Assigned to the entire department
+    if (t.assignmentLevel === 'department') return true;
+    
+    // 4. Fallback for older tasks without assignmentLevel
+    if (!t.assignmentLevel) {
+      if (t.employeeId === user.uid) return true;
+      if (!t.employeeId && t.teamId === user.teamId) return true;
+      if (!t.employeeId && !t.teamId) return true; // unscoped legacy task
+    }
+    
+    return false;
+  }).sort((a, b) => {
+    // Sort by due date
+    const dateA = a.dueDate ? (typeof a.dueDate === 'object' && 'toDate' in a.dueDate ? (a.dueDate as any).toDate() : new Date(a.dueDate as any)) : new Date('2099-01-01');
+    const dateB = b.dueDate ? (typeof b.dueDate === 'object' && 'toDate' in b.dueDate ? (b.dueDate as any).toDate() : new Date(b.dueDate as any)) : new Date('2099-01-01');
+    return dateA.getTime() - dateB.getTime();
+  });
 };
 
 export const getPendingTasksByEmployee = async (employeeId: string): Promise<Task[]> => {

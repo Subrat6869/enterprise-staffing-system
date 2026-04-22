@@ -1,0 +1,136 @@
+@startuml AdminFlowchart
+title Enterprise Staffing System — Admin Module Flowchart
+
+start
+
+:Admin Logs In;
+:Admin Dashboard Loads;
+:Show Stats: Total Employees,\nDepartments, Projects, Approvals,\nTeams, Areas;
+:Show Charts: Users per Area,\nTeams per Dept, Project Status;
+:Show Activity Logs;
+
+if (Admin Action?) then (User Management)
+
+  :Open /admin/users;
+  :Fetch All Users;
+  :Display Users Table;
+  :Search and Filter;
+
+  if (Sub Action?) then (Register User)
+    :Open Registration Dialog;
+    :Enter Name, Email, Password;
+    :Select Role;
+    :Select Area Code;
+    if (Team Level Role?) then (Yes)
+      :Select Department;
+      :Select Team;
+    else (No)
+    endif
+    if (Intern or Apprentice?) then (Yes)
+      :Upload Certificate;
+      :Save to Firebase Storage;
+    else (No)
+    endif
+    :Create via Secondary Firebase App;
+    :Save to Firestore\napprovalStatus = pending;
+    :Notify Area HR;
+    :Log USER_REGISTERED;
+
+  elseif (Bulk CSV Upload) then
+    :Open Bulk Upload Dialog;
+    :Upload CSV File;
+    :Parse with PapaParse;
+    :Validate: email, password,\nrole, areaCode, dept, team;
+    if (Errors Found?) then (Yes)
+      :Show Error Report;
+      :Download Error CSV;
+    else (No)
+      :Show Preview Table;
+      :Process Batch Registration;
+      :Show Success and Fail Count;
+      :Log USER_BULK_UPLOADED;
+    endif
+
+  elseif (Edit User) then
+    :Change Role, Dept, Team, Area;
+    :Update Firestore;
+    :Log USER_UPDATED;
+
+  elseif (Toggle Active) then
+    :Activate or Deactivate;
+    :Update isActive;
+    :Log Activity;
+
+  else (Delete User)
+    :Confirm Deletion;
+    :Delete from Firestore;
+    :Log USER_DELETED;
+  endif
+
+elseif (Verifications) then
+
+  :Open /admin/verifications;
+  :Fetch Pending Users with\nrole = admin, hr, gm, pm, supervisor;
+  :Display Pending Cards;
+
+  if (Decision?) then (Approve)
+    :Set approvalStatus = approved;
+    :Set isActive = true;
+    :Set verifiedBy = admin UID;
+    :Send Notification;
+    :Log USER_APPROVED;
+  else (Reject)
+    :Enter Rejection Reason;
+    :Set approvalStatus = rejected;
+    :Send Notification;
+    :Log USER_REJECTED;
+  endif
+
+elseif (Departments) then
+
+  :Open /admin/departments;
+  :Select Area from 38 Areas;
+  :Fetch Departments by Area;
+
+  if (Departments Exist?) then (No)
+    :Click Seed Departments;
+    :Create 6 Departments:\nSystem, Operations, Project,\nSupport+HR, Finance+Analytics,\nMaintenance;
+    :Create 16 Teams Total:\nSystem(4), Operations(3),\nProject(3), Support+HR(2),\nFinance+Analytics(2),\nMaintenance(2);
+    :Log DEPARTMENT_SEEDED;
+  else (Yes)
+    :Show Department Cards;
+    :Expand to View Teams;
+    :View Members;
+    :Assign Department Head;
+  endif
+
+elseif (Analytics) then
+
+  :Open /admin/analytics;
+  :Fetch Users, Depts, Projects,\nTasks, Teams;
+  :Calculate Metrics;
+  :Show Bar, Pie, Line Charts;
+
+else (Notices)
+
+  :Open /admin/notices;
+  :Fetch All Notices;
+
+  if (Notice Action?) then (Create)
+    :Enter Title, Message;
+    :Select Category:\ngeneral, urgent, policy, event;
+    :Select Type:\nglobal, team, individual;
+    :Select Target;
+    :Save to Firestore;
+    :Log NOTICE_CREATED;
+  elseif (Edit) then
+    :Update Notice;
+  else (Delete)
+    :Delete Notice;
+  endif
+
+endif
+
+stop
+
+@enduml

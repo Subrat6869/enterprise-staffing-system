@@ -1,0 +1,80 @@
+@startuml PMFlowchart
+title Enterprise Staffing System — Project Manager Module Flowchart
+
+start
+
+:PM Logs In;
+:PM Dashboard Loads;
+:Show: Active Projects,\nTask Status Summary,\nTeam Overview, Deadlines;
+
+if (PM Action?) then (Departments)
+
+  :Open /pm/departments;
+  :View Org Hierarchy:\nArea > Departments > Teams > Members;
+  :Browse Team Members;
+  :View Employee Count per Dept;
+
+elseif (Tasks) then
+
+  :Open /pm/tasks;
+  :Fetch Tasks by Project;
+  :Display Task Board;
+
+  if (Task Action?) then (Create Task)
+
+    :Select Project;
+    :Enter Title, Description;
+    :Set Priority:\nlow, medium, high, urgent;
+    :Set Due Date;
+
+    if (Assignment Level?) then (Department)
+      :Select Department;
+      :Auto-assign to ALL\nemployees in department;
+    elseif (Team Multi-Select) then
+      :Show Teams with Checkboxes;
+      :Select Multiple Teams;
+      :Assign to ALL members\nof selected teams;
+    else (Individual)
+      :Select Employee from Dropdown;
+    endif
+
+    :Create Task per Assignee;
+    :Send Notifications;
+    :Log TASK_CREATED;
+
+  elseif (Update Task) then
+    :Change Status or Priority;
+    :Reassign if needed;
+
+  else (Delete Task)
+    :Remove Task;
+  endif
+
+elseif (Team) then
+
+  :Open /pm/team;
+  :View All Team Members;
+  :Filter by Dept or Team;
+  :View Skills and Performance;
+
+elseif (Work Submissions) then
+
+  :Open /pm/work-submissions;
+  :Fetch Daily Work Logs;
+  :Review by Date;
+  :Check Hours and Descriptions;
+  :Find Missing Submissions;
+
+else (Reports)
+
+  :Open /pm/reports;
+  :Project Progress Reports;
+  :Task Completion Analytics;
+  :Team Performance Charts;
+  :Export to PDF;
+
+endif
+
+stop
+
+@enduml

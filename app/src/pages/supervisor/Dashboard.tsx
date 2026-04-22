@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/context/AuthContext';
-import { getUsersByDepartment, getAllTasks, getDailyWorkByEmployee, getTeamsBySupervisor } from '@/services/firestoreService';
+import { getUsersByDepartment, getUsersByArea, getMyTasks, getDailyWorkByEmployee, getTeamsBySupervisor } from '@/services/firestoreService';
 import type { User, Task, DailyWork, Team } from '@/types';
 import { toast } from 'sonner';
 import { formatDate, getInitials, getAvatarColor } from '@/utils/helpers';
@@ -30,23 +30,30 @@ const SupervisorDashboard: React.FC = () => {
   useEffect(() => { if (userData?.uid) loadData(); }, [userData]);
 
   const loadData = async () => {
-    if (!userData?.department) return;
+    if (!userData) return;
     try {
       setIsLoading(true);
-      // Parallel fetch
-      const [members, allTasks, supervisorTeams] = await Promise.all([
-        getUsersByDepartment(userData.department),
-        getAllTasks(),
+
+      // Fetch members: try department first, then fallback to area
+      const deptId = userData.departmentId || userData.department;
+      let members: User[] = [];
+      if (deptId) {
+        members = await getUsersByDepartment(deptId);
+      } else if (userData.areaCode) {
+        members = await getUsersByArea(userData.areaCode);
+      }
+
+      const [allTasks, supervisorTeams] = await Promise.all([
+        getMyTasks(userData),
         getTeamsBySupervisor(userData.uid)
       ]);
 
-      const filteredMembers = members.filter(m => m.uid !== userData.uid);
+      const filteredMembers = members.filter(m => m.uid !== userData.uid && ['employee', 'intern', 'apprentice'].includes(m.role));
       setTeamMembers(filteredMembers);
       setTeams(supervisorTeams.filter(t => t.status === 'active'));
 
       // Filter tasks for team members
-      const memberIds = new Set(filteredMembers.map(m => m.uid));
-      setTasks(allTasks.filter(t => memberIds.has(t.employeeId)));
+      setTasks(allTasks);
 
       // Get recent work (parallel for first 5 members)
       const workPromises = filteredMembers.slice(0, 5).map(m => getDailyWorkByEmployee(m.uid));
@@ -231,7 +238,7 @@ const SupervisorDashboard: React.FC = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-800">
-                  {['Task','Assigned To','Status','Progress','Due Date'].map(h => (
+                  {['Task','Assigned Entity','Members Working','Status','Progress','Due Date'].map(h => (
                     <th key={h} className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">{h}</th>
                   ))}
                 </tr>
@@ -244,12 +251,13 @@ const SupervisorDashboard: React.FC = () => {
                       <p className="text-sm text-gray-500">{task.projectName}</p>
                     </td>
                     <td className="py-4 px-4">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-semibold ${getAvatarColor(task.employeeName)}`}>
-                          {getInitials(task.employeeName)}
-                        </div>
-                        <span className="text-sm text-gray-600 dark:text-gray-400">{task.employeeName}</span>
-                      </div>
+                      {task.assignmentLevel === 'department' ? 'Department' :
+                        task.assignmentLevel === 'team' || task.assignmentLevel === 'multi_team' ? `Team: ${task.teamName}` :
+                        `Member: ${task.employeeName}`}
+                    </td>
+                    <td className="py-4 px-4">
+                      {task.assignmentLevel === 'department' ? teamMembers.length : 
+                       task.assignmentLevel === 'team' || task.assignmentLevel === 'multi_team' ? teamMembers.filter(m => m.teamId === task.teamId).length : 1}
                     </td>
                     <td className="py-4 px-4">
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${

@@ -1,26 +1,57 @@
-// MANAGER ASSIGNMENTS PAGE
+// ============================================
+// GM ASSIGNMENTS — AREA-SCOPED PROJECTS
+// ============================================
+
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { FolderKanban, Users, Calendar, Search } from 'lucide-react';
+import { FolderKanban, Users, Calendar, Search, MapPin, Building2 } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { getAllProjects } from '@/services/firestoreService';
+import { useAuth } from '@/context/AuthContext';
+import { getProjectsByArea } from '@/services/firestoreService';
 import type { Project } from '@/types';
 import { toast } from 'sonner';
 import { formatDate } from '@/utils/helpers';
+import { formatArea } from '@/data/areaData';
 
 const ManagerAssignments: React.FC = () => {
+  const { userData } = useAuth();
+  const gmAreaCode = userData?.areaCode || '';
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { if (gmAreaCode) loadData(); }, [gmAreaCode]);
+
   const loadData = async () => {
-    try { setIsLoading(true); setProjects(await getAllProjects()); }
-    catch { toast.error('Failed to load'); }
-    finally { setIsLoading(false); }
+    try {
+      setIsLoading(true);
+      setProjects(await getProjectsByArea(gmAreaCode));
+    } catch {
+      toast.error('Failed to load');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const filtered = projects.filter(p => (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()));
+
+  // Guard: no area
+  if (!gmAreaCode) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center max-w-md">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
+              <Building2 className="w-8 h-8 text-amber-500" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">No Area Assigned</h2>
+            <p className="text-gray-500 dark:text-gray-400">Please contact Admin to assign your area.</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -28,6 +59,10 @@ const ManagerAssignments: React.FC = () => {
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Project Assignments</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">Manage project assignments and track progress</p>
+          <div className="flex items-center gap-2 mt-1">
+            <MapPin className="w-4 h-4 text-teal-500" />
+            <span className="text-sm font-medium text-teal-600 dark:text-teal-400">{formatArea(gmAreaCode, userData?.areaName)}</span>
+          </div>
         </div>
         <div className="relative w-full md:w-1/3">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -57,6 +92,11 @@ const ManagerAssignments: React.FC = () => {
                 </div>
               </motion.div>
             ))}
+            {filtered.length === 0 && (
+              <div className="col-span-full text-center text-gray-400 py-12">
+                {searchQuery ? 'No projects match your search.' : 'No projects in your area yet.'}
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -19,7 +19,7 @@ import {
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/context/AuthContext';
 import { 
-  getTasksByEmployee, 
+  getMyTasks, 
   submitDailyWork,
   getDailyWorkByEmployee,
   getAllNotices
@@ -65,7 +65,7 @@ const InternDashboard: React.FC = () => {
       setIsLoading(true);
       
       const [tasksData, noticesData, workData] = await Promise.all([
-        getTasksByEmployee(userData.uid),
+        getMyTasks(userData),
         getAllNotices(5),
         getDailyWorkByEmployee(userData.uid)
       ]);

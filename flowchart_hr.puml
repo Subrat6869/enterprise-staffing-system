@@ -1,0 +1,56 @@
+@startuml HRFlowchart
+title Enterprise Staffing System — HR Module Flowchart
+
+start
+
+:HR Logs In;
+:HR Dashboard Loads;
+:Show Area Stats:\nEmployees in Area,\nPending Verifications,\nDepartments, Activity;
+
+if (HR Action?) then (Employees)
+
+  :Open /hr/employees;
+  :Fetch Users by Area\n(hr.areaCode);
+  :Display Employee Table;
+  :Search by Dept, Team, Role;
+  :View Employee Details;
+  :Edit Employee Records;
+
+elseif (Verifications) then
+
+  :Open /hr/verifications;
+  :Fetch Pending Users WHERE\nrole = employee, intern, apprentice\nAND areaCode = hr.areaCode;
+  :Display Pending User Cards;
+  :Review: Name, Email, Role,\nDept, Team, Qualification,\nCertificate;
+
+  if (Single or Bulk?) then (Single)
+    if (Decision?) then (Approve)
+      :Set approvalStatus = approved;
+      :Set isActive = true;
+      :Set certificateVerified = true;
+      :Send Notification to User;
+    else (Reject)
+      :Set approvalStatus = rejected;
+      :Send Rejection with Reason;
+    endif
+  else (Bulk)
+    :Select Multiple Users;
+    if (Bulk Action?) then (Approve All)
+      :Approve All Selected;
+    else (Reject All)
+      :Reject All Selected;
+    endif
+  endif
+
+else (Reports)
+
+  :Open /hr/reports;
+  :View Employee Reports\nDaily, Weekly, Monthly;
+  :Review and Approve Reports;
+  :Generate HR Summary;
+
+endif
+
+stop
+
+@enduml

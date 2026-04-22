@@ -1,0 +1,83 @@
+@startuml AuthFlowchart
+title Enterprise Staffing System — Authentication & Login Flow
+
+start
+
+:User Opens Application;
+
+if (Session Active?) then (Yes)
+  :Auto-load User Data;
+else (No)
+  :Show Login Page;
+endif
+
+if (Login Method?) then (Email)
+  :Enter Email and Password;
+  :Solve Math CAPTCHA;
+  :Firebase signInWithEmailAndPassword;
+elseif (Google) then
+  :Click Sign in with Google;
+  :Firebase signInWithPopup;
+  if (New User?) then (Yes)
+    :Create Firestore Doc\napprovalStatus = pending;
+    :Sign Out;
+    :Show Pending Approval;
+    stop
+  else (No)
+  endif
+else (Phone OTP)
+  :Enter Phone Number;
+  :reCAPTCHA Verification;
+  :Send OTP via SMS;
+  :Enter OTP Code;
+  :Verify OTP;
+endif
+
+:Fetch User Data from Firestore;
+
+if (approvalStatus = pending?) then (Yes)
+  :Identify Approver\nAdmin for higher roles\nArea HR for employees;
+  :Show Awaiting Approval;
+  :Sign Out;
+  stop
+elseif (approvalStatus = rejected?) then (Yes)
+  :Show Account Rejected;
+  :Sign Out;
+  stop
+else (approved)
+endif
+
+if (MFA Enabled?) then (Yes)
+  :Redirect to MFA Verify;
+  :Enter 6-Digit TOTP Code;
+  if (Code Valid?) then (Yes)
+    :MFA Passed;
+  else (No)
+    :Show Error;
+    stop
+  endif
+else (No)
+endif
+
+:Login Success;
+:Log Activity LOGIN_SUCCESS;
+
+if (Role?) then (admin)
+  :Go to Admin Dashboard;
+elseif (hr) then
+  :Go to HR Dashboard;
+elseif (general_manager) then
+  :Go to Manager Dashboard;
+elseif (supervisor) then
+  :Go to Supervisor Dashboard;
+elseif (project_manager) then
+  :Go to PM Dashboard;
+elseif (employee) then
+  :Go to Employee Dashboard;
+else (intern/apprentice)
+  :Go to Intern Dashboard;
+endif
+
+stop
+
+@enduml

@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Calendar, BookOpen } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/context/AuthContext';
-import { getTasksByEmployee } from '@/services/firestoreService';
+import { getMyTasks } from '@/services/firestoreService';
 import type { Task } from '@/types';
 import { toast } from 'sonner';
 import { formatDate } from '@/utils/helpers';
@@ -16,7 +16,7 @@ const InternTasks: React.FC = () => {
 
   useEffect(() => { if (userData?.uid) loadData(); }, [userData]);
   const loadData = async () => {
-    try { setIsLoading(true); setTasks(await getTasksByEmployee(userData!.uid)); }
+    try { setIsLoading(true); setTasks(await getMyTasks(userData!)); }
     catch { toast.error('Failed to load'); }
     finally { setIsLoading(false); }
   };

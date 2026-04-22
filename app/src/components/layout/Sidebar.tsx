@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   Users,
   Building2,
-  FolderKanban,
   ClipboardList,
   FileText,
   Bell,
@@ -56,7 +55,7 @@ const navItems: NavItem[] = [
   
   // General Manager
   { path: '/manager/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['general_manager'] },
-  { path: '/manager/assignments', label: 'Assignments', icon: Users, roles: ['general_manager'] },
+  { path: '/manager/work-progress', label: 'Work Progress', icon: BarChart3, roles: ['general_manager'] },
   { path: '/manager/departments', label: 'Departments', icon: Building2, roles: ['general_manager'] },
   { path: '/manager/reports', label: 'Reports', icon: BarChart3, roles: ['general_manager'] },
   
@@ -76,7 +75,6 @@ const navItems: NavItem[] = [
   
   // Employee
   { path: '/employee/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['employee'] },
-  { path: '/employee/projects', label: 'My Projects', icon: FolderKanban, roles: ['employee'] },
   { path: '/employee/tasks', label: 'My Tasks', icon: CheckSquare, roles: ['employee'] },
   { path: '/employee/work-log', label: 'Work Log', icon: ClipboardList, roles: ['employee'] },
   { path: '/employee/reports', label: 'Reports', icon: FileText, roles: ['employee'] },

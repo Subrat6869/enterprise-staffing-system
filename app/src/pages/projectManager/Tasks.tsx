@@ -70,6 +70,7 @@ const PMTasks: React.FC = () => {
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
   const [taskMemberId, setTaskMemberId] = useState('');
   const [taskPriority, setTaskPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
+  const [taskStartDate, setTaskStartDate] = useState('');
   const [taskDeadline, setTaskDeadline] = useState('');
   const [taskStatus, setTaskStatus] = useState<'pending' | 'in_progress' | 'review' | 'completed'>('pending');
 
@@ -158,7 +159,7 @@ const PMTasks: React.FC = () => {
   // Open create dialog
   const openCreateDialog = () => {
     setEditingTask(null);
-    setTaskTitle(''); setTaskDesc(''); setTaskDeptId(''); setSelectedTeamIds([]); setTaskMemberId('');
+    setTaskTitle(''); setTaskDesc(''); setTaskDeptId(''); setSelectedTeamIds([]); setTaskMemberId(''); setTaskStartDate('');
     setTaskPriority('medium'); setTaskDeadline(''); setTaskStatus('pending');
     setDeptTeams([]); setTeamMembers([]);
     setIsTaskDialogOpen(true);
@@ -220,7 +221,7 @@ const PMTasks: React.FC = () => {
             assignedByName: userData?.name || '',
             dueDate: taskDeadline ? new Date(taskDeadline) : null,
             updatedAt: new Date(),
-            assignedAt: new Date(),
+            assignedAt: taskStartDate ? new Date(taskStartDate) : new Date(),
             createdAt: new Date(),
             progress: 0
           };
@@ -258,7 +259,7 @@ const PMTasks: React.FC = () => {
           toast.success('Task updated!');
           if (userData?.uid) logActivity(userData.uid, userData.name, userData.role, 'TASK_UPDATED', `Updated task: ${taskTitle}`, 'Task');
         } else {
-          taskData.assignedAt = new Date();
+          taskData.assignedAt = taskStartDate ? new Date(taskStartDate) : new Date();
           taskData.createdAt = new Date();
           taskData.progress = 0;
           await createTask(taskData);
@@ -594,8 +595,22 @@ const PMTasks: React.FC = () => {
                 </div>
               )}
 
-              {/* Priority + Deadline + Status */}
-              <div className="grid grid-cols-3 gap-3">
+              {/* Start Date + End Date */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Start Date</label>
+                  <input type="date" value={taskStartDate} onChange={e => setTaskStartDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm text-gray-900 dark:text-white" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">End Date</label>
+                  <input type="date" value={taskDeadline} onChange={e => setTaskDeadline(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm text-gray-900 dark:text-white" />
+                </div>
+              </div>
+
+              {/* Priority + Status */}
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Priority</label>
                   <select value={taskPriority} onChange={e => setTaskPriority(e.target.value as any)}
@@ -603,11 +618,6 @@ const PMTasks: React.FC = () => {
                     <option value="low">Low</option><option value="medium">Medium</option>
                     <option value="high">High</option><option value="urgent">Urgent</option>
                   </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Deadline</label>
-                  <input type="date" value={taskDeadline} onChange={e => setTaskDeadline(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-sm text-gray-900 dark:text-white" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>

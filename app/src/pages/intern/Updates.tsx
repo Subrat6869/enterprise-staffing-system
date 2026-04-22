@@ -1,11 +1,11 @@
-// INTERN UPDATES PAGE
+// INTERN UPDATES PAGE — TASK-BASED SUBMISSION
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Send, FileText } from 'lucide-react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { useAuth } from '@/context/AuthContext';
-import { getDailyWorkByEmployee, submitDailyWork } from '@/services/firestoreService';
-import type { DailyWork } from '@/types';
+import { getDailyWorkByEmployee, submitDailyWork, getMyTasks } from '@/services/firestoreService';
+import type { DailyWork, Task } from '@/types';
 import { toast } from 'sonner';
 import { formatDate } from '@/utils/helpers';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -13,22 +13,47 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 const InternUpdates: React.FC = () => {
   const { userData } = useAuth();
   const [updates, setUpdates] = useState<DailyWork[]>([]);
+  const [myTasks, setMyTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [form, setForm] = useState({ hoursWorked: '', description: '', learnings: '', questions: '', tomorrowPlan: '' });
+  const [form, setForm] = useState({ taskId: '', hoursWorked: '', description: '', learnings: '', questions: '', tomorrowPlan: '' });
 
   useEffect(() => { if (userData?.uid) loadData(); }, [userData]);
   const loadData = async () => {
-    try { setIsLoading(true); setUpdates(await getDailyWorkByEmployee(userData!.uid)); }
-    catch { toast.error('Failed to load'); }
+    try {
+      setIsLoading(true);
+      const [work, tasks] = await Promise.all([
+        getDailyWorkByEmployee(userData!.uid),
+        getMyTasks(userData!)
+      ]);
+      setUpdates(work);
+      setMyTasks(tasks);
+    } catch { toast.error('Failed to load'); }
     finally { setIsLoading(false); }
   };
+
+  const selectedTask = myTasks.find(t => t.id === form.taskId);
 
   const handleSubmit = async () => {
     if (!userData?.uid) return;
     try {
-      await submitDailyWork({ employeeId: userData.uid, employeeName: userData.name, date: new Date(), hoursWorked: parseFloat(form.hoursWorked) || 0, description: form.description, accomplishments: form.learnings, challenges: form.questions, tomorrowPlan: form.tomorrowPlan, createdAt: new Date() });
-      toast.success('Update submitted'); setIsDialogOpen(false); setForm({ hoursWorked: '', description: '', learnings: '', questions: '', tomorrowPlan: '' }); loadData();
+      await submitDailyWork({
+        employeeId: userData.uid,
+        employeeName: userData.name,
+        taskId: form.taskId || undefined,
+        taskTitle: selectedTask?.title || undefined,
+        date: new Date(),
+        hoursWorked: parseFloat(form.hoursWorked) || 0,
+        description: form.description,
+        accomplishments: form.learnings,
+        challenges: form.questions,
+        tomorrowPlan: form.tomorrowPlan,
+        createdAt: new Date()
+      });
+      toast.success('Update submitted');
+      setIsDialogOpen(false);
+      setForm({ taskId: '', hoursWorked: '', description: '', learnings: '', questions: '', tomorrowPlan: '' });
+      loadData();
     } catch { toast.error('Submit failed'); }
   };
 
@@ -52,6 +77,7 @@ const InternUpdates: React.FC = () => {
                 className="bg-white dark:bg-gray-900 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800">
                 <div className="flex items-center justify-between mb-3"><p className="font-medium text-gray-900 dark:text-white">{formatDate(u.date)}</p>
                   <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">{u.hoursWorked}h</span></div>
+                {u.taskTitle && <p className="text-sm font-medium text-teal-600 dark:text-teal-400 mb-1">📋 {u.taskTitle}</p>}
                 <p className="text-sm text-gray-600 dark:text-gray-400">{u.description}</p>
                 {u.accomplishments && <p className="text-sm text-green-600 mt-2">📚 {u.accomplishments}</p>}
               </motion.div>
@@ -60,8 +86,22 @@ const InternUpdates: React.FC = () => {
         )}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-            <DialogHeader><DialogTitle>Daily Learning Update</DialogTitle><DialogDescription>Share your learning progress</DialogDescription></DialogHeader>
+            <DialogHeader><DialogTitle>Daily Learning Update</DialogTitle><DialogDescription>Select a task and share your progress</DialogDescription></DialogHeader>
             <div className="space-y-4 py-4">
+              {/* Task Dropdown */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Task *</label>
+                <select
+                  value={form.taskId}
+                  onChange={e => setForm({ ...form, taskId: e.target.value })}
+                  className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500 text-gray-900 dark:text-white"
+                >
+                  <option value="">Select a task...</option>
+                  {myTasks.map(t => (
+                    <option key={t.id} value={t.id}>{t.title} — {t.status.replace('_', ' ')}</option>
+                  ))}
+                </select>
+              </div>
               <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Hours *</label>
                 <input type="number" step="0.5" min="0" max="24" value={form.hoursWorked} onChange={e => setForm({ ...form, hoursWorked: e.target.value })} className="w-full px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal-500" /></div>
               <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">What did you work on? *</label>
@@ -71,7 +111,7 @@ const InternUpdates: React.FC = () => {
             </div>
             <DialogFooter>
               <button onClick={() => setIsDialogOpen(false)} className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300">Cancel</button>
-              <button onClick={handleSubmit} disabled={!form.hoursWorked || !form.description} className="px-4 py-2 rounded-xl bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50">Submit</button>
+              <button onClick={handleSubmit} disabled={!form.taskId || !form.hoursWorked || !form.description} className="px-4 py-2 rounded-xl bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50">Submit</button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
