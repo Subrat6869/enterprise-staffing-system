@@ -1,0 +1,62 @@
+@startuml Authentication_Flow_State_Machine
+
+title "Authentication Flow State Machine Diagram\nEnterprise Staffing System (ESS)"
+
+skinparam defaultFontName "Serif"
+skinparam defaultFontSize 11
+skinparam titleFontSize 16
+skinparam titleFontStyle bold
+skinparam monochrome true
+skinparam shadowing false
+skinparam state {
+    RoundCorner 8
+}
+
+[*] --> LoginPage
+
+state "Login Page" as LoginPage
+state "Firebase Authentication" as FirebaseAuth
+state "Approval Check" as ApprovalCheck
+state "MFA Check" as MFACheck
+state "MFA Setup\n(First Time)" as MFASetup
+state "MFA Verify\n(TOTP Code)" as MFAVerify
+state "Role-Based\nDashboard Redirect" as Dashboard
+state "Access Denied" as Denied
+
+LoginPage : CAPTCHA + Rate Limiting
+LoginPage : (5 attempts / 2-min lockout)
+
+LoginPage --> FirebaseAuth : Submit
+
+FirebaseAuth : Email + Password
+FirebaseAuth : Google Sign-In
+FirebaseAuth : Phone OTP
+
+FirebaseAuth --> ApprovalCheck : auth success
+FirebaseAuth --> LoginPage : auth failed
+
+ApprovalCheck : approvalStatus checked
+ApprovalCheck : pending / approved / rejected
+
+ApprovalCheck --> Denied : pending or rejected
+ApprovalCheck --> MFACheck : approved
+
+Denied : "Awaiting approval from\nAdmin or Area HR"
+Denied --> [*] : forced sign-out
+
+MFACheck : MFA required for:\nadmin, hr, general_manager,\nsupervisor, project_manager
+
+MFACheck --> MFASetup : MFA role +\nnot yet enabled
+MFACheck --> MFAVerify : MFA role +\nalready enabled
+MFACheck --> Dashboard : non-MFA role
+
+MFASetup : Scan QR code with\nGoogle Authenticator
+MFASetup --> Dashboard : setup complete
+
+MFAVerify : Enter 6-digit TOTP code\n(5 attempts max)
+MFAVerify --> Dashboard : code valid
+MFAVerify --> LoginPage : 5 failed → logout
+
+Dashboard --> [*] : admin → /admin/dashboard\nhr → /hr/dashboard\ngm → /manager/dashboard\npm → /pm/dashboard\nsupervisor → /supervisor/dashboard\nemployee → /employee/dashboard\nintern → /intern/dashboard
+
+@enduml

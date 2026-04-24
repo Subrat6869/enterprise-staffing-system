@@ -1,0 +1,134 @@
+@startuml Three_Tier_Architecture
+
+title "Three-Tier Application Architecture Diagram\nEnterprise Staffing System (ESS)"
+
+skinparam defaultFontName "Serif"
+skinparam defaultFontSize 11
+skinparam titleFontSize 16
+skinparam titleFontStyle bold
+skinparam monochrome true
+skinparam shadowing false
+
+skinparam package {
+    Style rectangle
+}
+
+skinparam rectangle {
+    RoundCorner 8
+}
+
+top to bottom direction
+
+' ============================================================
+' LAYER 1 — PRESENTATION LAYER (Frontend)
+' ============================================================
+
+package "Presentation Layer  (React.js + Vite + Tailwind CSS)" as frontend {
+
+    rectangle "Login / Register\n(Email, Google, Phone OTP)" as loginUI
+    rectangle "MFA Setup\n(TOTP / Phone Verify)" as mfaUI
+
+    rectangle "Admin Dashboard" as adminDash
+    rectangle "HR Dashboard" as hrDash
+    rectangle "General Manager\nDashboard" as gmDash
+    rectangle "Project Manager\nDashboard" as pmDash
+    rectangle "Supervisor\nDashboard" as svDash
+    rectangle "Employee\nDashboard" as empDash
+    rectangle "Intern / Apprentice\nDashboard" as internDash
+
+    rectangle "Profile Settings\n(Shared)" as profileUI
+    rectangle "AI Chatbot" as chatbot
+}
+
+' ============================================================
+' LAYER 2 — APPLICATION LAYER (Services)
+' ============================================================
+
+package "Application Layer  (TypeScript Services)" as backend {
+
+    rectangle "Authentication\nService" as authSvc
+    rectangle "Role-Based Access\nControl (RBAC)" as rbac
+
+    rectangle "User Management\nService" as userSvc
+    rectangle "Department\nManagement Service" as deptSvc
+    rectangle "Team Management\nService" as teamSvc
+    rectangle "Project Management\nService" as projSvc
+    rectangle "Task Management\nService" as taskSvc
+    rectangle "Report / Daily Work\nService" as reportSvc
+    rectangle "Notice &\nNotification Service" as noticeSvc
+    rectangle "Activity Log\nService" as activitySvc
+    rectangle "In-Memory Cache\n(2-min TTL)" as cacheSvc
+}
+
+' ============================================================
+' LAYER 3 — DATA LAYER (Firebase)
+' ============================================================
+
+package "Data Layer  (Firebase Cloud Services)" as datalayer {
+
+    database "Firebase\nAuthentication" as fireAuth
+    database "Cloud Firestore\n(Persistent Local Cache)" as firestore
+
+    rectangle "users" as colUsers
+    rectangle "departments" as colDepts
+    rectangle "teams" as colTeams
+    rectangle "projects" as colProjects
+    rectangle "tasks" as colTasks
+    rectangle "dailyWork" as colDaily
+    rectangle "reports" as colReports
+    rectangle "notices" as colNotices
+    rectangle "notifications" as colNotifs
+    rectangle "activityLogs" as colLogs
+
+    database "Firebase Storage\n(Certificates, Photos,\nReport Files)" as fireStorage
+}
+
+' ============================================================
+' CONNECTIONS — Presentation <-> Application
+' ============================================================
+
+loginUI -down-> authSvc : " login / register"
+mfaUI -down-> authSvc : " MFA verify"
+
+adminDash -down-> userSvc
+adminDash -down-> deptSvc
+hrDash -down-> userSvc
+gmDash -down-> projSvc
+pmDash -down-> taskSvc
+svDash -down-> teamSvc
+empDash -down-> taskSvc
+internDash -down-> taskSvc
+profileUI -down-> userSvc
+
+' RBAC guards all routes
+rbac <-left- authSvc : " validates\n role"
+
+' ============================================================
+' CONNECTIONS — Application <-> Data
+' ============================================================
+
+authSvc -down-> fireAuth : " Email / Google /\n Phone OTP"
+userSvc -down-> colUsers
+deptSvc -down-> colDepts
+teamSvc -down-> colTeams
+projSvc -down-> colProjects
+taskSvc -down-> colTasks
+reportSvc -down-> colReports
+reportSvc -down-> colDaily
+noticeSvc -down-> colNotices
+noticeSvc -down-> colNotifs
+activitySvc -down-> colLogs
+
+userSvc -down-> fireStorage : " certificates\n & photos"
+
+' Cache layer
+cacheSvc .[hidden].> firestore
+
+' Firestore grouping
+colUsers -down[hidden]-> firestore
+colDepts -down[hidden]-> firestore
+colTeams -down[hidden]-> firestore
+colProjects -down[hidden]-> firestore
+colTasks -down[hidden]-> firestore
+
+@enduml

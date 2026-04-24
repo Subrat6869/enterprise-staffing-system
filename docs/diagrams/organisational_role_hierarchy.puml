@@ -1,0 +1,135 @@
+@startuml Organisational_Role_Hierarchy
+
+title "Organisational Role Hierarchy Diagram\nEnterprise Staffing System (ESS)"
+
+skinparam defaultFontName "Serif"
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam titleFontStyle bold
+skinparam monochrome true
+skinparam shadowing false
+
+skinparam rectangle {
+    RoundCorner 8
+}
+
+skinparam linetype ortho
+
+top to bottom direction
+
+' ==============================
+' LEVEL 0 — System Admin
+' ==============================
+
+rectangle "Admin" as admin {
+}
+
+' ==============================
+' LEVEL 1 — Area-Level Roles
+' ==============================
+
+rectangle "HR Manager" as hr {
+}
+rectangle "General Manager\n(GM)" as gm {
+}
+
+' ==============================
+' LEVEL 2 — Middle Management
+' ==============================
+
+rectangle "Project Manager\n(PM)" as pm {
+}
+
+' ==============================
+' LEVEL 3 — Team-Level Supervision
+' ==============================
+
+rectangle "Supervisor" as sv {
+}
+
+' ==============================
+' LEVEL 4 — Team-Level Staff
+' ==============================
+
+rectangle "Employee" as emp {
+}
+rectangle "Intern" as intern {
+}
+rectangle "Apprentice" as apprentice {
+}
+
+
+' ==============================
+' RELATIONSHIPS
+' ==============================
+
+' Admin manages all Area-level roles
+admin -down-> hr : " registers &\n approves"
+admin -down-> gm : " manages"
+
+' GM oversees PMs
+gm -down-> pm : " supervises"
+
+' PM assigns tasks to Supervisors and staff
+pm -down-> sv : " assigns tasks"
+
+' Supervisor manages Team members
+sv -down-> emp : " manages"
+sv -down-> intern : " manages"
+sv -down-> apprentice : " manages"
+
+' HR handles recruitment & verification
+hr -right[hidden]-> gm
+
+' Employees report upward
+emp -up..> pm : " reports /\n submits work"
+
+' HR verifies staff
+hr ..> emp : " verifies &\n approves"
+hr ..> intern : " verifies &\n approves"
+hr ..> apprentice : " verifies &\n approves"
+
+
+' ==============================
+' SCOPE NOTES
+' ==============================
+
+note right of admin
+  System-wide access
+  Manages Users, Departments,
+  Areas (38), Notices, Analytics,
+  Bulk Upload & Verifications
+end note
+
+note right of hr
+  Area-scoped
+  Handles recruitment,
+  employee verification
+  & approval workflow
+end note
+
+note left of gm
+  Area-scoped
+  Oversees departments,
+  work progress & reports
+end note
+
+note right of pm
+  Area-scoped
+  Manages Projects, Tasks,
+  Departments & Team assignments
+end note
+
+note left of sv
+  Team-scoped
+  Manages day-to-day
+  team operations &
+  work tracking
+end note
+
+note bottom of emp
+  Team-scoped — assigned to
+  Department > Team
+end note
+
+@enduml

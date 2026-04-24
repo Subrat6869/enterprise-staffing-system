@@ -1,0 +1,58 @@
+@startuml Sequence_Diagram
+
+title "Sequence Diagram: Secure Authentication & MFA Flow\nEnterprise Staffing System (ESS)"
+
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam titleFontStyle bold
+skinparam monochrome true
+skinparam shadowing false
+autonumber
+
+actor "User" as User
+participant "React UI" as UI
+participant "AuthService" as Auth
+database "Firebase Auth" as FBAuth
+database "Firestore DB" as DB
+
+User -> UI : Enter Email & Password
+activate UI
+
+UI -> UI : Request Math CAPTCHA
+User -> UI : Solve CAPTCHA
+
+UI -> Auth : signInWithEmailAndPassword()
+activate Auth
+
+Auth -> FBAuth : Authenticate credentials
+activate FBAuth
+FBAuth --> Auth : Auth Token & UID
+deactivate FBAuth
+
+Auth -> DB : Fetch User Document (approvalStatus, role)
+activate DB
+DB --> Auth : User Data
+deactivate DB
+
+alt approvalStatus == 'pending' or 'rejected'
+    Auth --> UI : Access Denied Error
+    UI --> User : Show "Awaiting Approval"
+else approvalStatus == 'approved'
+    
+    alt role requires MFA (Admin/HR/PM)
+        Auth --> UI : Redirect to MFA
+        UI --> User : Prompt for 6-digit TOTP
+        User -> UI : Submit Code
+        UI -> Auth : verify(TOTP)
+        Auth --> UI : MFA Success
+    end
+    
+    UI -> DB : logActivity('LOGIN_SUCCESS')
+    UI --> User : Redirect to Role Dashboard
+end
+
+deactivate Auth
+deactivate UI
+
+@enduml

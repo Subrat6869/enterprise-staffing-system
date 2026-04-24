@@ -1,0 +1,52 @@
+@startuml DFD_Level_0
+
+title "Data Flow Diagram (Level 0) — Context Diagram\nEnterprise Staffing System (ESS)"
+
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam titleFontStyle bold
+skinparam monochrome true
+skinparam shadowing false
+
+' Clean straight lines
+skinparam linetype ortho
+skinparam nodesep 60
+skinparam ranksep 150
+
+left to right direction
+
+' ==========================================
+' CENTRAL SYSTEM
+' ==========================================
+usecase "0.0\n\nEnterprise Staffing\nSystem (ESS)\n" as ESS
+
+' ==========================================
+' MANAGEMENT (LEFT)
+' ==========================================
+rectangle "Admin" as Admin
+rectangle "General Manager" as GM
+rectangle "HR Manager" as HR
+
+' ==========================================
+' OPERATIONS (RIGHT)
+' ==========================================
+rectangle "Project Manager" as PM
+rectangle "Supervisor" as SV
+rectangle "Staff\n(Employee / Intern)" as Staff
+
+' ==========================================
+' DATA FLOWS (Simplified Bidirectional)
+' ==========================================
+
+' Left side interactions
+Admin <---> ESS : " Config Data \n << Analytics "
+GM <---> ESS : " Decisions \n << Metrics "
+HR <---> ESS : " Approvals \n << Reports "
+
+' Right side interactions
+ESS <---> PM : " Assignments \n << Submissions "
+ESS <---> SV : " Task Lists \n << Tracking "
+ESS <---> Staff : " Notices \n << Daily Work "
+
+@enduml

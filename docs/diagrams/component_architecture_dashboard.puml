@@ -1,0 +1,49 @@
+@startuml Component_Architecture_DashboardLayout
+
+title "Component Architecture — DashboardLayout and Children\nEnterprise Staffing System (ESS)"
+
+skinparam defaultFontName "Serif"
+skinparam defaultFontSize 11
+skinparam titleFontSize 16
+skinparam titleFontStyle bold
+skinparam monochrome true
+skinparam shadowing false
+skinparam component {
+    RoundCorner 8
+}
+
+component "AuthProvider" as Auth
+component "ProtectedRoute (RBAC)" as Guard
+component "AIChatbot" as Chat
+component "Toaster (Sonner)" as Toast
+
+package "DashboardLayout" as Layout {
+    component "Sidebar\n(Nav + Logo + Profile)" as Sidebar
+    component "Header\n(Search + Notifications\n+ Dark Mode)" as Header
+    component "{children}" as Children
+}
+
+component "Admin Pages (6)" as Admin
+component "HR Pages (4)" as HR
+component "GM Pages (4)" as GM
+component "PM Pages (6)" as PM
+component "Supervisor Pages (4)" as SV
+component "Employee Pages (4)" as Emp
+component "Intern Pages (4)" as Int
+component "Shared Pages (1)" as Shared
+
+Auth -down-> Guard
+Guard -down-> Layout
+Layout -right-> Chat
+Layout -right-> Toast
+
+Children -down-> Admin
+Children -down-> HR
+Children -down-> GM
+Children -down-> PM
+Children -down-> SV
+Children -down-> Emp
+Children -down-> Int
+Children -down-> Shared
+
+@enduml

@@ -1,0 +1,87 @@
+@startuml Class_Diagram
+
+title "Class Diagram\nEnterprise Staffing System (ESS)"
+
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam titleFontStyle bold
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+skinparam nodesep 50
+skinparam ranksep 60
+
+enum UserRole {
+  admin
+  hr
+  general_manager
+  project_manager
+  supervisor
+  employee
+  intern
+}
+
+class User {
+  + uid: string
+  + name: string
+  + email: string
+  + role: UserRole
+  + areaCode: string
+  + approvalStatus: string
+  + mfaEnabled: boolean
+  + isActive: boolean
+  + createdAt: Date
+}
+
+class Department {
+  + id: string
+  + name: string
+  + headId: string
+  + employeeCount: number
+  + teamLimit: number
+}
+
+class Team {
+  + id: string
+  + name: string
+  + departmentId: string
+  + supervisorId: string
+  + memberIds: string[]
+}
+
+class Project {
+  + id: string
+  + name: string
+  + assignedManagerId: string
+  + status: string
+  + progress: number
+  + deadline: Date
+}
+
+class Task {
+  + id: string
+  + projectId: string
+  + employeeId: string
+  + title: string
+  + status: string
+  + priority: string
+}
+
+class DailyWork {
+  + id: string
+  + taskId: string
+  + hoursWorked: number
+  + accomplishments: string
+  + date: Date
+}
+
+UserRole -down- User
+Department "1" *-- "*" Team : contains
+Department "1" o-- "*" Project : owns
+Team "1" o-- "*" User : has members
+Project "1" *-- "*" Task : breaks down into
+User "1" -- "*" Task : assigned to
+Task "1" *-- "*" DailyWork : logs effort
+
+@enduml

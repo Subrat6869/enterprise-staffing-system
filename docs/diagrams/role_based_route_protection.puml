@@ -1,0 +1,58 @@
+@startuml Role_Based_Route_Protection_Flow
+
+title "Role-Based Route Protection Flow Diagram\nEnterprise Staffing System (ESS)"
+
+skinparam defaultFontName "Serif"
+skinparam defaultFontSize 11
+skinparam titleFontSize 16
+skinparam titleFontStyle bold
+skinparam monochrome true
+skinparam shadowing false
+skinparam activity {
+    RoundCorner 8
+}
+
+start
+
+:User requests a protected route;
+
+if (Auth loading ?) then (yes)
+    :Show loading spinner;
+    stop
+else (no)
+endif
+
+if (Authenticated ?) then (no)
+    :Redirect to **/login**;
+    stop
+else (yes)
+endif
+
+if (Route has\nallowedRoles ?) then (no)
+    :Grant access\n(shared route);
+    stop
+else (yes)
+endif
+
+if (User role in\nallowedRoles ?) then (yes)
+    :Grant access;
+    stop
+else (no)
+endif
+
+:Redirect to user's\nown dashboard;
+
+note right
+  admin → /admin/dashboard
+  hr → /hr/dashboard
+  general_manager → /manager/dashboard
+  project_manager → /pm/dashboard
+  supervisor → /supervisor/dashboard
+  employee → /employee/dashboard
+  intern → /intern/dashboard
+  apprentice → /intern/dashboard
+end note
+
+stop
+
+@enduml

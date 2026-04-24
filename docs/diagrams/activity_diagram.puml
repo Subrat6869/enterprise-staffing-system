@@ -1,0 +1,55 @@
+@startuml Activity_Diagram
+
+title "Activity Diagram: Bulk CSV User Verification\nEnterprise Staffing System (ESS)"
+
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam titleFontStyle bold
+skinparam monochrome true
+skinparam shadowing false
+
+|Admin / HR|
+start
+:Navigate to Verifications Page;
+:Upload CSV File of Users;
+
+|System (Frontend)|
+:Parse CSV Data;
+:Validate emails & fields;
+
+if (Validation Errors?) then (yes)
+  :Show Error Summary;
+  stop
+else (no)
+endif
+
+|Firestore Database|
+:Create User Documents;
+:Set status = 'pending';
+:Log Activity 'USER_BULK_UPLOADED';
+
+|Admin / HR|
+:View Pending Users Table;
+:Select multiple users;
+
+fork
+  :Click Approve;
+  |Firestore Database|
+  :Update status = 'approved';
+  :Generate random password;
+  :Send Welcome Email;
+fork again
+  |Admin / HR|
+  :Click Reject;
+  |Firestore Database|
+  :Update status = 'rejected';
+  :Delete Auth record;
+end merge
+
+|System (Frontend)|
+:Show Success Toast;
+:Refresh Table;
+stop
+
+@enduml

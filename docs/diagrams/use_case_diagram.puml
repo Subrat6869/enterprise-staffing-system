@@ -1,0 +1,107 @@
+@startuml Use_Case_Diagram
+
+title "Use Case Diagram\nEnterprise Staffing System (ESS)"
+
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam titleFontStyle bold
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype polyline
+
+' Ultra-tight spacing to squish the height
+skinparam nodesep 10
+skinparam ranksep 60
+
+left to right direction
+
+' ==========================================
+' LEFT SIDE ACTORS
+' ==========================================
+actor "Admin" as Admin
+actor "HR Manager" as HR
+actor "General Manager" as GM
+
+' ==========================================
+' SYSTEM BOUNDARY & CONSOLIDATED MODULES
+' ==========================================
+rectangle "Enterprise Staffing System" {
+
+  package "Auth & Shared" {
+    usecase "Login & Verify MFA" as Auth1
+    usecase "Profile & AI Chatbot" as Shared1
+  }
+
+  package "Admin Module" {
+    usecase "Manage Users & Depts" as A1
+    usecase "View System Analytics" as A2
+    usecase "Post Global Notices" as A3
+  }
+
+  package "HR Module" {
+    usecase "Verify & Approve Users" as H1
+    usecase "Review HR Reports" as H2
+  }
+
+  package "GM Module" {
+    usecase "View Depts & Assignments" as G1
+    usecase "View Area Dashboard" as G2
+  }
+
+  package "PM Module" {
+    usecase "Manage Projects & Tasks" as PM1
+    usecase "Review Work Submissions" as PM2
+  }
+
+  package "Supervisor Module" {
+    usecase "Manage & Track Team" as SV1
+  }
+
+  package "Staff Module" {
+    usecase "View Assigned Tasks" as E1
+    usecase "Submit Daily Work Log" as E2
+  }
+}
+
+' ==========================================
+' RIGHT SIDE ACTORS
+' ==========================================
+actor "Project Manager" as PM
+actor "Supervisor" as SV
+actor "Staff (Emp / Intern)" as Staff
+
+' ==========================================
+' LEFT CONNECTIONS
+' ==========================================
+Admin ---> Auth1
+Admin ---> Shared1
+Admin ---> A1
+Admin ---> A2
+Admin ---> A3
+
+HR ---> Auth1
+HR ---> H1
+HR ---> H2
+
+GM ---> Auth1
+GM ---> G1
+GM ---> G2
+
+' ==========================================
+' RIGHT CONNECTIONS (Point left to keep actors on right)
+' ==========================================
+PM1 <--- PM
+PM2 <--- PM
+Auth1 <--- PM
+Shared1 <--- PM
+
+SV1 <--- SV
+Auth1 <--- SV
+
+E1 <--- Staff
+E2 <--- Staff
+Auth1 <--- Staff
+Shared1 <--- Staff
+
+@enduml

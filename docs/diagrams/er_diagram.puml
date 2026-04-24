@@ -1,0 +1,81 @@
+@startuml ER_Diagram
+
+title "Entity Relationship (ER) Diagram (Simplified)\nEnterprise Staffing System (ESS)"
+
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+skinparam titleFontSize 16
+skinparam titleFontStyle bold
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+
+' Increase spacing for a clean look
+skinparam nodesep 80
+skinparam ranksep 100
+
+hide circle
+hide methods
+
+' ==========================================
+' CORE ENTITIES (Only essential fields shown)
+' ==========================================
+
+entity "Department" as Department {
+  * id : string
+  --
+  name : string
+  areaCode : string
+}
+
+entity "Team" as Team {
+  * id : string
+  --
+  name : string
+}
+
+entity "User" as User {
+  * uid : string
+  --
+  name : string
+  role : string
+  email : string
+}
+
+entity "Project" as Project {
+  * id : string
+  --
+  name : string
+  status : string
+}
+
+entity "Task" as Task {
+  * id : string
+  --
+  title : string
+  status : string
+}
+
+entity "DailyWork" as DailyWork {
+  * id : string
+  --
+  date : Date
+  hoursWorked : number
+}
+
+' ==========================================
+' CORE RELATIONSHIPS
+' ==========================================
+
+Department ||--o{ Team : "contains"
+Department ||--o{ User : "employs"
+Department ||--o{ Project : "owns"
+
+Team ||--o{ User : "has members"
+
+Project ||--o{ Task : "broken into"
+User ||--o{ Task : "assigned to"
+
+Task ||--o{ DailyWork : "time logged via"
+
+@enduml
